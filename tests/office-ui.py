@@ -71,6 +71,24 @@ class Office(unittest.TestCase):
         self.agents = [old]
         self.assertEqual(office.snapshot(A)['desks'][0]['attention'], '')
 
+    def test_prompts_from_the_journal(self):
+        """What an agent was asked (its prompt hook's note in the journal, a
+        turn entry with a text) is on the snapshot's agents: the last prompt
+        with a text, when, and the first; a desk with no task says the first
+        on its board row, so a desk you prompted by hand is told by it."""
+        self.rec = dict(self.rec, task={})
+        self.records = [self.rec]
+        self.agents = [self.agent()]
+        turn = {'kind': 'turn', 'agent': 'codex', 'pid': 1, 'folder': self.folder, 'file': ''}
+        A.journal_write([dict(turn, at=100, text='Fix the picker'), dict(turn, at=200, text='And the bar'),
+                         dict(turn, at=300, text=''), dict(turn, at=150, text='other', pid=2)])
+        self.addCleanup(lambda: os.path.exists(A.JOURNAL) and os.remove(A.JOURNAL))
+        snap = office.snapshot(A)
+        a = snap['desks'][0]['agents'][0]
+        self.assertEqual((a['prompt'], a['prompt_at'], a['first_prompt']), ('And the bar', 200, 'Fix the picker'))
+        rows = [r for section in snap['board']['sections'] for r in section['rows'] if r.get('desk') == snap['desks'][0]['id']]
+        self.assertTrue(rows and rows[0]['line'].endswith('no task record · prompted: Fix the picker'), rows)
+
     def test_tasks_in_the_snapshot_and_a_record_adopted(self):
         """Version 2: the task records, the launch sequence, and each desk's
         task record with the worker's state as observed. A desk record from

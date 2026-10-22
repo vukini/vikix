@@ -12,8 +12,9 @@
 #   at one desk are numbered, each keeping its number when the other
 #   leaves, another provider is not; an agent gone leaves the terminal
 #   unnamed when it is a shell again, and renamed when another agent runs
-#   there; a terminal with no agent, an agent off a desk (home, the
-#   project's own folder) and a name the user gave are left alone; a desk
+#   there; an agent off a desk (home, the project's own folder) is named
+#   for its folder (~ · Claude, books · Claude), numbered the same way; a
+#   terminal with no agent and a name the user gave are left alone; a desk
 #   with spaces, punctuation and Unicode in its name; a reload leaves one
 #   hook and one wrapper, and the names as they were; vikix agents and
 #   --json say the same name. A desk gone while its agent runs (released, or
@@ -177,12 +178,20 @@ kill "$pid"; sleep 1; pass
 check "another agent in the same terminal: named for it: $(ask "(princ (window-user-title $(by_title "✳ Ready E")))")" \
   yes "(equal (window-user-title $(by_title "✳ Ready E")) \"fix-typos · Antigravity\")"
 
-# --- Off a desk: home, the project's own folder; a name the user gave -------------------------------
+# --- Off a desk: home, the project's own folder, named for the folder; a name the user gave ----------
 term "$t/title-f" "✳ Home F" "$home" "$t/bin/claude" "$t/title-f"
 term "$t/title-g" "✳ Own G" "$home/src/books" "$t/bin/claude" "$t/title-g"
-sleep 4; pass
-check "an agent in the home folder is not at a desk: unnamed" yes "(null (window-user-title $(by_title "✳ Home F")))"
-check "nor one in the project's own folder" yes "(null (window-user-title $(by_title "✳ Own G")))"
+got=$(name_of "✳ Home F" "~ · Claude")
+check "an agent in the home folder, at no desk, is named for it: '$got'" test "$got" = "~ · Claude"
+got=$(name_of "✳ Own G" "books · Claude")
+check "one in the project's own folder for that folder: '$got'" test "$got" = "books · Claude"
+term "$t/title-g2" "✳ Own G2" "$home/src/books" "$t/bin/claude" "$t/title-g2"
+got=$(name_of "✳ Own G2" "books · Claude 2")
+check "a second of the provider in the folder is numbered, as at a desk: '$got'" test "$got" = "books · Claude 2"
+got=$(name_of "✳ Own G" "books · Claude 1")
+check "and the first takes 1: '$got'" test "$got" = "books · Claude 1"
+check "vikix agents shows the folder's name before what the agent wrote: $(grep 'books · Claude 1' <<<"$(cli)")" \
+  grep -qx '           books · Claude 1: ✳ Own G' <<<"$(cli)"
 ask "(setf (window-user-title $(by_title "✳ Done B")) \"mine\")" >/dev/null
 pass
 check "a name the user gave with title stays" yes "(equal (window-user-title $(by_title "✳ Done B")) \"mine\")"

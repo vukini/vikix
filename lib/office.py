@@ -467,6 +467,11 @@ def desk_board_row(desk, section):
                     for a in agents)
     words = ('not a desk' if desk.get('kind') == 'folder' else 'no task record' if agents
              else desk.get('next_action', '') if section == 'Closed' else 'stands empty')
+    # With no task record, what its agent was first asked in its terminal (the
+    # prompt hook's note) is what the row is about.
+    asked = next((' '.join(a['first_prompt'].split()) for a in agents if a.get('first_prompt')), '')
+    if asked:
+        words += ' · prompted: ' + (asked[:117] + '…' if len(asked) > 120 else asked)
     return {'kind': 'desk', 'id': desk['id'], 'task': '', 'desk': desk['id'], 'section': section,
             'line': f"{desk.get('title', '')} · {who or desk.get('provider', '')} · {words}", 'detail': '',
             'state': words, 'status': '', 'title': desk.get('title', ''), 'project': (desk.get('desk') or {}).get('project', ''),
@@ -782,6 +787,7 @@ def snapshot(api, include_queue=True):
         agents += api.elsewhere({a['pid'] for a in agents}, strict=True)
         agents = api.seated(agents)
         api.journal_states(agents)   # working or at its prompt from the hooks' journal, where the title says nothing
+        api.journal_prompts(agents)  # what each was asked (prompt, first_prompt), from the prompt hooks' notes
         live_known = True
     except (RuntimeError, OSError, ValueError) as e:
         agents, live_known = [], False

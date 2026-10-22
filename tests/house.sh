@@ -96,6 +96,17 @@ check "the same from the hook's JSON on stdin: $(head -c 60 <<<"$out")" grep -q 
 out=$(printf '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch 2>&1)
 check "a tool without a file is let be: '$out'" test -z "$out"
 
+# The prompt hook (UserPromptSubmit, Claude Code's from office.json): the prompt's
+# text noted, so the listing says what an agent was asked; a credential never.
+out=$(printf '{"session_id":"s1","prompt":"Fix the picker,\\nplease"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch --turn 2>&1)
+check "the prompt hook prints nothing (stdout would reach the model): '$out'" test -z "$out"
+check "and notes the prompt's text in the journal" grep -q '"kind": "turn", "agent": "claude", "pid": 1001.*"text": "Fix the picker,\\nplease"' "$journal"
+out=$(printf '{"session_id":"s1","prompt":"set ANTHROPIC_API_KEY=sk-ant-abcdefghijklmnop0123 and go"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch --turn 2>&1)
+check "a prompt that looks like it holds a credential is noted without its text" \
+  bash -c '! grep -q "sk-ant-abcdefghijklmnop0123" "$1" && grep -q "\"pid\": 1001.*\"text\": \"\"" "$1"' _ "$journal"
+# (What the listing makes of them, prompt and first_prompt, is in tests/codex.sh,
+# which has a desktop to ask.)
+
 out=$(touch_as 1001 "$t/src/book-b/notes.md")
 check "a file in another agent's folder is a crossing, told to the agent: $(head -c 80 <<<"$out")" \
   grep -q '"additionalContext": "Vikix office: .*book-b/notes.md is in .*book-b, the folder codex 1002 works in, not yours' <<<"$out"
@@ -195,7 +206,8 @@ assert h["PreToolUse"][0]["hooks"][0]["command"] == "vikix agents touch", h
 assert "matcher" not in h["PreToolUse"][1] and h["PreToolUse"][1]["hooks"][0]["command"] == "vikix agents touch --pause-only", h
 assert all(e["hooks"][0]["timeout"] >= 660 for e in h["PreToolUse"]), h
 assert h["SessionEnd"][0]["hooks"][0]["command"] == "vikix agents left", h
-assert h["Stop"][0]["hooks"][0]["command"] == "vikix agents stopping", h'
+assert h["Stop"][0]["hooks"][0]["command"] == "vikix agents stopping", h
+assert h["UserPromptSubmit"][0]["hooks"][0]["command"] == "vikix agents touch --turn", h'
 check "vikix agent gives Claude Code the hook, unless VIKIX_OFFICE=0" \
   grep -q 'VIKIX_OFFICE:-1.*!= 0.*\]' "$here/bin/vikix-agent"
 check "with --settings, so nothing is written to the user's settings" \

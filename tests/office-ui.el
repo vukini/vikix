@@ -203,7 +203,8 @@ changed and the commits."
                (alist-get 'now r) nil
                (alist-get 'desk r) '((worktree . "/home/someone"))
                (alist-get 'agents r) '(((agent . "codex") (pid . 7598) (doing . "running") (window . "3")
-                                        (workspace . "2") (process_start . "100"))))
+                                        (workspace . "2") (process_start . "100")
+                                        (first_prompt . "Fix the picker") (prompt . "And the\nbar") (prompt_at . 1700000000))))
          (vikix-office--render)
          ;; Its own rows: no handoff named (the other row, a desk, still has one).
          (should (string-match-p "^[│|] Not a desk · codex · workspace 2 +[│|]\n[│|] Live +running +[│|]\n[│|] Next +Go to agent +[│|]$" (buffer-string)))
@@ -213,7 +214,10 @@ changed and the commits."
            (should (string-match-p "Close agent" (buffer-string)))
            (should-not (string-match-p "Continue" (buffer-string)))
            (should-not (string-match-p "Observed Git state\\|What the agent says\\|Saved conversations" (buffer-string)))
-           (should (string-match-p "codex 7598 +workspace 2 · running" (buffer-string))))
+           (should (string-match-p "codex 7598 +workspace 2 · running" (buffer-string)))
+           ;; What it was asked, from its prompt hook: the first in the folder's box, the last under it.
+           (should (string-match-p "codex 7598 was first asked: Fix the picker" (buffer-string)))
+           (should (string-match-p "prompted at [0-9][0-9]:[0-9][0-9]: And the bar" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error)
          ;; Without an agent left there is still no Continue: nothing to continue in a folder.
          (setf (alist-get 'agents r) nil)

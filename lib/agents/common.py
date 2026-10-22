@@ -1025,6 +1025,32 @@ def journal_states(agents):
     return agents
 
 
+# How much of a prompt the journal keeps (turn_began), and the listing shows.
+PROMPT_MAX = 600
+
+
+def journal_prompts(agents):
+    """What each of AGENTS was asked, from the journal's turn entries with a
+    text (the UserPromptSubmit hooks, Claude Code's and Codex's): "prompt",
+    the last one, "prompt_at" when, and "first_prompt", the first this
+    session of the journal has (what the agent was started for, when no
+    task record says); "" and 0 without. AGENTS changed in place and
+    returned."""
+    first, last = {}, {}
+    for e in journal_read():
+        if e.get("kind") == "turn" and e.get("text") and isinstance(e.get("pid"), int):
+            if e["pid"] not in first or e.get("at", 0) < first[e["pid"]].get("at", 0):
+                first[e["pid"]] = e
+            if e["pid"] not in last or e.get("at", 0) >= last[e["pid"]].get("at", 0):
+                last[e["pid"]] = e
+    for a in agents:
+        e = last.get(a.get("pid"))
+        a["prompt"] = e["text"] if e else ""
+        a["prompt_at"] = e.get("at", 0) if e else 0
+        a["first_prompt"] = first[a["pid"]]["text"] if a.get("pid") in first else ""
+    return agents
+
+
 def journal_write(entries):
     os.makedirs(os.path.dirname(JOURNAL), exist_ok=True)
     tmp = JOURNAL + ".tmp"

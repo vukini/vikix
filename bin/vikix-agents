@@ -14,7 +14,12 @@
                        so instead: waiting for a release (its turn in the
                        release queue), releasing (what step), waiting for
                        a test slot (other runs are testing), testing.
-                       --json: the same for a script
+                       Under an agent whose prompt hook ran (Claude Code's
+                       from vikix agent, Codex's), the last prompt you
+                       typed, and how long ago, so one with no task at its
+                       desk, or no desk, is still told by what you asked
+                       it. --json: the same for a script (prompt,
+                       prompt_at, first_prompt)
   vikix agents office [--tty]
                        The Office: tasks, desks and handoffs, in Emacs.
                        Go to an agent or continue a desk from it. On the
@@ -611,10 +616,13 @@
                        VAR=value or bash -lc too, which Codex's own matching
                        misses, every command of the line one of them; any
                        other is left to you, or in autonomous mode to Codex's
-                       reviewer. --turn is Codex's UserPromptSubmit hook: a
-                       turn begun, noted in the journal, which is how the
-                       listing says working for an agent whose title says
-                       nothing
+                       reviewer. --turn is the UserPromptSubmit hook,
+                       Claude Code's and Codex's: a turn begun, noted in
+                       the journal with the prompt's text (its first 600
+                       characters; one that looks like a credential is
+                       left out), which is how the listing says working for
+                       an agent whose title says nothing, and shows what
+                       each agent was asked
   vikix agents stopping [--for PROVIDER]
                        Claude Code's and Codex's Stop hook: a worker is asked once for its handoff.
                        A worker, an agent at a desk with a task, that
@@ -737,8 +745,10 @@ the overview and the palette, from the moment the agent is at the desk
 provider at a desk are "wifi-fix · Claude 1" and "wifi-fix · Claude 2",
 each keeping its number while it runs. The title the agent itself writes
 (Claude Code's turning mark) is kept apart, and still says what it is
-doing; a terminal with no agent at a desk is left as it is. The listing
-and the Office show the same name (desk_title in --json).
+doing; a terminal with no agent is left as it is. The listing
+and the Office show the same name (desk_title in --json). An agent off
+any desk is named for its folder the same way ("~ · Claude" in the home
+folder, "notes · Codex" in ~/src/notes), so two are told apart.
 
 No desk, no work on a repository: an agent edits the files of a project's
 repository (any of vikix project's that is one) only from a desk, a
@@ -1127,6 +1137,7 @@ def main(argv):
         # Shells it left sleeping in a loop: said while it is at its prompt (a
         # command of its own may well sleep while it works).
         a["idle_shells"] = idle_shells(a["pid"], table) if a["state"] not in ("working", "running") else []
+    journal_prompts(agents)   # what each was asked, from the prompt hooks
     if as_json:
         print(json.dumps(agents, indent=1, ensure_ascii=False))
         return 0
@@ -1158,6 +1169,10 @@ def main(argv):
             print(f"           {name}: {line[:110]}")
         elif name or line:
             print(f"           {(name or line)[:110]}")
+        # What you asked it last (its prompt hook's note), one line of it.
+        if a.get("prompt"):
+            asked = " ".join(a["prompt"].split())
+            print(f"           prompted {how_long(max(0, int(time.time()) - a['prompt_at']))} ago: {asked[:100]}")
         for c in a["clashes"]:
             print(f"           on {c['file']} with {', '.join(c['with'])} too (vikix agents clash {c['file']})")
         if a["idle_shells"]:

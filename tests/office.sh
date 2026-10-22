@@ -143,7 +143,7 @@ out=$(cli)
 check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 2 waiting for you(, [0-9]+ files? two are on)?:$' <<<"$(head -1 <<<"$out")"
 check "each with its folder's branch and what waits uncommitted there: $(grep 'proj-a' <<<"$out" | head -1)" \
   grep -qE '^  claude +.*proj-a \(topic, 2 uncommitted, no desk\) +workspace 1 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
-check "under it what it asked" grep -qx '           May I run the tests?' <<<"$out"
+check "under it its window's name, for its folder, and what it asked" grep -qx '           proj-a · Claude: May I run the tests?' <<<"$out"
 check "a folder that isn't a repository is only named, with no desk: $(grep 'codex' <<<"$out")" grep -qE '^  codex +.*proj-b \(no desk\) +workspace 2 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
 check "one with no window of its own is listed too: $(grep -A1 gemini <<<"$out" | tr '\n' ' ')" \
   bash -c "grep -A1 '^  gemini ' <<<\"\$1\" | grep -q 'no window of its own: started by'" _ "$out"

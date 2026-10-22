@@ -106,7 +106,8 @@ def take_turn(me, path, clashes, now):
 # --- The hooks each provider can run: what holds the rules, honestly --------------------------------
 ADAPTERS = {
     "claude": ("config/claude/office.json", None,
-               "given to Claude Code by vikix agent at every start (--settings): pre-edit and pre-shell hooks"),
+               "given to Claude Code by vikix agent at every start (--settings): pre-edit and pre-shell hooks, "
+               "UserPromptSubmit (the prompt noted, for the listing and the Office), Stop and SessionEnd"),
     "codex": ("config/codex/hooks.json", ".codex/hooks.json",
               "hooks in ~/.codex/hooks.json: PreToolUse (apply_patch read for its files, Bash; a clash refused once, "
               "since it can't ask), PermissionRequest (a step out of its sandbox into the project's own folder, "
@@ -819,20 +820,35 @@ def escalation():
 
 
 def turn_began():
-    """vikix agents touch --for codex --turn: Codex's UserPromptSubmit
-    hook. A turn entry in the journal, so a worker thinking before its
-    first tool call is working, not running (journal_states); the plugin's
-    note cleared, as Claude Code's own hook clears it. Nothing printed:
-    plain stdout would be given to the model."""
+    """vikix agents touch --turn: Claude Code's and Codex's UserPromptSubmit
+    hook. A turn entry in the journal, with the prompt's text (prompt_text:
+    what the user typed, so the listing and the Office say what an agent
+    was asked, a desk with no task record too), so a worker thinking before
+    its first tool call is working, not running (journal_states); the
+    plugin's note cleared, as Claude Code's own hook clears it. Nothing
+    printed: plain stdout would be given to the model."""
     got, raw = hook_input()
     note_session(got.get("session_id"))
     me = my_agent()
     if not me:
         return 0
     journal_add({"at": int(time.time()), "kind": "turn", "agent": me["agent"], "pid": me["pid"],
-                 "folder": me["folder"], "file": ""})
+                 "folder": me["folder"], "file": "", "text": prompt_text(got.get("prompt"))})
     plugin_note("clear", raw)
     return 0
+
+
+def prompt_text(prompt):
+    """PROMPT as the journal keeps it: its first PROMPT_MAX characters,
+    control characters out (handoff's clean), and nothing of one that
+    looks like it holds a credential, which clean refuses; "" for none."""
+    if not isinstance(prompt, str) or not prompt.strip():
+        return ""
+    H = handoff_module()
+    try:
+        return H.clean(prompt[:H.TEXT_MAX], "prompt")[:PROMPT_MAX]
+    except H.HandoffError:
+        return ""
 
 
 def all_clashes(agents):

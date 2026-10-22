@@ -1319,6 +1319,12 @@ named): its title, the acts the queue takes on it, and its record."
                 (progn
                   (vikix-office--box-top width chars "Not a desk")
                   (vikix-office--field width chars 0 "" (concat "Agents running in " (vikix-office--text (alist-get 'title r))))
+                  (dolist (a (alist-get 'agents r))
+                    (unless (member (alist-get 'first_prompt a) '(nil ""))
+                      (vikix-office--field width chars 0 ""
+                                           (format "%s %s was first asked: %s" (alist-get 'agent a) (alist-get 'pid a)
+                                                   (vikix-office--one-line (alist-get 'first_prompt a)))
+                                           'shadow)))
                   (vikix-office--note width chars "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell; vikix agents desk PROJECT TOPIC makes a desk, vikix agents worker TOPIC \"the task\" starts one at it.")
                   (vikix-office--box-bottom width chars))
               ;; The task's own record first (lib/tasks.py), as the board's rows are tasks.
@@ -1327,7 +1333,14 @@ named): its title, the acts the queue takes on it, and its record."
                   (vikix-office--task-record-box width chars owner task (alist-get 'worker_state r))))
               (vikix-office--box-top width chars "Task")
               (if (alist-get 'task r) (vikix-office--signed width chars 0 "" (alist-get 'task r))
-                (vikix-office--field width chars 0 "" "No task given: the desk stands for a worker later (New worker… gives one)."))
+                (vikix-office--field width chars 0 "" "No task given: the desk stands for a worker later (New worker… gives one).")
+                ;; No task, but an agent you prompted in its terminal: what you first asked it.
+                (dolist (a (alist-get 'agents r))
+                  (unless (member (alist-get 'first_prompt a) '(nil ""))
+                    (vikix-office--field width chars 0 ""
+                                         (format "%s %s was first asked: %s" (alist-get 'agent a) (alist-get 'pid a)
+                                                 (vikix-office--one-line (alist-get 'first_prompt a)))
+                                         'shadow))))
               ;; How the last agent left (dismissed, exited, logged out), and the notes waiting for the next.
               (let ((gone (alist-get 'left r)))
                 (when (and gone (alist-get 'reason gone))
@@ -1534,7 +1547,13 @@ named): its title, the acts the queue takes on it, and its record."
                                               (vikix-office--attention-face (alist-get 'attention a)))
                          (let ((said (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) ""))))
                            (unless (string-empty-p said)
-                             (vikix-office--field width chars label-width "" said 'shadow))))
+                             (vikix-office--field width chars label-width "" said 'shadow)))
+                         ;; What you asked it last, in its terminal (its prompt hook's note).
+                         (unless (member (alist-get 'prompt a) '(nil ""))
+                           (vikix-office--field width chars label-width ""
+                                                (concat "prompted at " (vikix-office--clock (alist-get 'prompt_at a)) ": "
+                                                        (vikix-office--one-line (alist-get 'prompt a)))
+                                                'shadow)))
                        agents labels))
             (vikix-office--box-bottom width chars)
             (unless (vikix-office--folder-p r)

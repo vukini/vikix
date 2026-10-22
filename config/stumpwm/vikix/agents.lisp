@@ -238,7 +238,7 @@ and its window's title or what it last said."
   "The agents, a line each, tab-separated, for bin/vikix-agents: name, pid,
 folder, workspace, window number, seconds, state, its words, what it said,
 the window's title, the window's name for its desk (\"office-ui · Claude\";
-empty off a desk), and what its terminal needs of you (asks, gup, close, or
+\"~ · Claude\" off one, for its folder), and what its terminal needs of you (asks, gup, close, or
 empty: vikix-agent-attention-of). Tabs and line ends inside a field are
 spaces."
   (flet ((field (x) (substitute-if #\Space (lambda (c) (member c '(#\Tab #\Newline #\Return)))
@@ -304,9 +304,13 @@ agent's terminal there."
 ;;; (the project's own folder has a .git folder), and its topic is the
 ;;; folder's ending after the repository's name and a dash; an agent that sat
 ;;; down elsewhere (vikix agents sit) is at the seat's folder, from the seats
-;;; file bin/vikix-agents keeps. Two of one provider at one desk are "Claude
-;;; 1" and "Claude 2": each keeps its number while it runs, a new one takes
-;;; the lowest free. A terminal with no agent at a desk is left alone, and
+;;; file bin/vikix-agents keeps. An agent off any desk (Super+a's in the home
+;;; folder, one in a project's own folder) is named for its folder the same
+;;; way, "~ · Claude", "notes · Codex", so it can be told from the others
+;;; (2026-10-22: it was left alone, and showed in the Office as a process
+;;; number only). Two of one provider at one desk, or in one folder, are
+;;; "Claude 1" and "Claude 2": each keeps its number while it runs, a new
+;;; one takes the lowest free. A terminal with no agent is left alone, and
 ;;; one whose agent has gone (a shell again, or another agent now) is named
 ;;; again or unnamed at the next pass. A pass runs at a title change (once a
 ;;; second at most: a provider's title turns several times a second, so the
@@ -419,6 +423,16 @@ only when the file changed. Only read: bin/vikix-agents keeps it."
                (setf *vikix-agent-seats* (cons stamp seats))
                seats)))))
 
+(defun vikix-agent-folder-name (folder)
+  "FOLDER's name for a window, when it is no desk: ~ for the home folder,
+else its last part (notes for ~/src/notes); nil for none, or one that is
+gone (its process's link reads \"... (deleted)\" then)."
+  (let ((dir (string-right-trim "/" (or folder ""))))
+    (cond ((zerop (length dir)) nil)
+          ((not (probe-file (concatenate 'string dir "/"))) nil)
+          ((string= dir (string-right-trim "/" (namestring (user-homedir-pathname)))) "~")
+          (t (vikix-agent-basename dir)))))
+
 (defun vikix-agent-desk-of (agent)
   "(values DESK TOPIC) of AGENT's desk: the seat it took (vikix agents
 sit), else the desk its folder is in; nil off one."
@@ -445,12 +459,13 @@ read once or written here, so a pass asks the X server nothing.")
     (and (plusp (length known)) known)))
 
 (defun vikix-agent-titles (agents)
-  "What to name the window of each of AGENTS (vikix-window-agent's plists)
-that is at a desk: (AGENT . \"TOPIC · Provider\"), with a number after the
-provider when more of that provider are at the desk, or when the number
-isn't 1 (the first may have gone). One that holds a number keeps it; the
-rest take the lowest free, the longest-running first, or the number its
-window was marked with before a restart when that is free."
+  "What to name the window of each of AGENTS (vikix-window-agent's plists):
+(AGENT . \"TOPIC · Provider\") at a desk, (AGENT . \"FOLDER · Provider\")
+off one (~ in the home folder), with a number after the provider when
+more of that provider are at the desk or in the folder, or when the
+number isn't 1 (the first may have gone). One that holds a number keeps
+it; the rest take the lowest free, the longest-running first, or the
+number its window was marked with before a restart when that is free."
   (let ((at '()) (gone '()) (taken (make-hash-table :test 'equal)))
     (dolist (a agents)
       (multiple-value-bind (desk topic repo) (vikix-agent-desk-of a)
@@ -462,10 +477,17 @@ window was marked with before a restart when that is free."
               (t
                (multiple-value-bind (folder topic) (vikix-agent-gone-desk a)
                  (declare (ignore folder))
-                 (when topic
-                   (push (cons a (or (vikix-agent-desk-mark (getf a :window))
-                                     (format nil "~a · ~a" topic (vikix-agent-shown-name (getf a :name)))))
-                         gone)))))))
+                 (if topic
+                     (push (cons a (or (vikix-agent-desk-mark (getf a :window))
+                                       (format nil "~a · ~a" topic (vikix-agent-shown-name (getf a :name)))))
+                           gone)
+                     ;; Off any desk: its folder stands for one ("~ · Claude"), the
+                     ;; folder's path the key its number is kept under.
+                     (let* ((where (or (cdr (assoc (getf a :pid) (vikix-agent-seats))) (getf a :folder)))
+                            (place (vikix-agent-folder-name where)))
+                       (when place
+                         (push (list a (string-right-trim "/" where) place (vikix-agent-shown-name (getf a :name)))
+                               at)))))))))
     (setf at (nreverse at))
     ;; The numbers of agents gone are anyone's tomorrow.
     (let ((live (mapcar (lambda (row) (getf (first row) :pid)) at)))

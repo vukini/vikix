@@ -614,12 +614,15 @@ check "a command that reads is left alone: '$out'" test -z "$out"
 rm -f "$NOTED"
 out=$(hook 1101 '{"session_id":"01a1-thread","prompt":"go on"}' --turn)
 check "a turn begun prints nothing (stdout would reach the model): '$out'" test -z "$out"
-check "is in the journal, and clears the plugin's note" bash -c 'grep -q "\"kind\": \"turn\".*\"pid\": 1101" "$1" && grep -q "^clear " "$2"' _ "$journal" "$NOTED"
+check "is in the journal with the prompt's text, and clears the plugin's note" bash -c 'grep -q "\"kind\": \"turn\".*\"pid\": 1101.*\"text\": \"go on\"" "$1" && grep -q "^clear " "$2"' _ "$journal" "$NOTED"
 out=$(agents --json)
 check "the listing says working for it, from the journal, with what and how long ago: $(grep -o '"doing": "[^"]*"' <<<"$out" | head -3 | tr '\n' ' ')" \
   python3 -c 'import json, sys; a = [a for a in json.load(sys.stdin) if a["pid"] == 1101][0]; assert a["state"] == "working" and a["doing"].startswith("working (a turn begun ") and a["doing"].endswith(" s ago)"), a' <<<"$out"
 check "and codex 1103, which did nothing in a minute, is running still" \
   python3 -c 'import json, sys; a = [a for a in json.load(sys.stdin) if a["pid"] == 1103][0]; assert a["state"] == "running", a' <<<"$out"
+check "the listing has the prompt it was given, the last one with a text, and the first: $(grep -o '"prompt": "[^"]*"' <<<"$out" | head -2 | tr '\n' ' ')" \
+  python3 -c 'import json, sys; a = [a for a in json.load(sys.stdin) if a["pid"] == 1101][0]; assert a["prompt"] == "go on" and a["first_prompt"] == "go on" and a["prompt_at"] > 0, a; assert all(x["prompt"] == "" and x["prompt_at"] == 0 for x in json.load(open(sys.argv[1])) if x["pid"] == 1103)' <<<"$out" <(printf '%s' "$out")
+check "and says it in a line, how long ago: $(grep prompted <<<"$(agents)")" grep -q '^           prompted [0-9]* s ago: go on$' <<<"$(agents)"
 rm -f "$NOTED"
 out=$(stop_as 1101 '{"stop_hook_active":false,"last_assistant_message":"Done with the log. Shall I go on?","cwd":"'"$t/src/book-a"'"}')
 check "the Stop hook asks a worker that changed files for its handoff, in Codex's shape: $(head -c 100 <<<"$out")" grep -q '^{"decision": "block", "reason": "Vikix office: this turn changed [0-9]* files* at your desk' <<<"$out"
