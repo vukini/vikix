@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # tests/grok.sh — public vikix grok dispatch, concurrent claims, durable review,
-# retries, invalid inputs, and no execution or fetching of returned content.
+# retries, invalid inputs, and no execution or fetching of returned content;
+# the install of Grok Bot from a made-up .deb (nothing of it run, nothing
+# outside its folder, a failed one leaving no half, the queue outliving it).
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live Emacs
@@ -8,6 +10,7 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's
 here=$(cd "$(dirname "$0")/.." && pwd)
 python3 - "$here" <<'PY'
 import concurrent.futures
+import io
 import json
 import os
 from pathlib import Path
@@ -149,5 +152,141 @@ with tempfile.TemporaryDirectory(prefix='vikix-grok-test-') as temp:
     (work / 'queue-link').symlink_to(store)
     run('list', ok=False)
 
-print('grok: CLI handoff, atomic claims, review, retries, cancellation, bounded inputs and inert results passed')
+    # --- Installing Grok Bot: a made-up .deb, a stand-in release list, a fake home.
+    import tarfile
+
+    def ar(members):   # (name, bytes) -> a Debian package's ar archive
+        out = b'!<arch>\n'
+        for name, data in members:
+            out += f'{name + "/":<16}{0:<12}{0:<6}{0:<6}{"100644":<8}{len(data):<10}`\n'.encode()
+            out += data + (b'\n' if len(data) % 2 else b'')
+        return out
+
+    def tar_xz(entries):   # (name, data or None for a folder, mode[, linkname])
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode='w:xz') as tf:
+            for name, data, mode, *link in entries:
+                info = tarfile.TarInfo(name)
+                info.mode = mode
+                if link:
+                    info.type = tarfile.SYMTYPE
+                    info.linkname = link[0]
+                elif data is None:
+                    info.type = tarfile.DIRTYPE
+                else:
+                    info.size = len(data)
+                tf.addfile(info, io.BytesIO(data) if data is not None and not link else None)
+        return buf.getvalue()
+
+    def deb(version, extra=()):
+        app = './opt/Grok Bot/'
+        entries = [('./', None, 0o755), ('./opt/', None, 0o755), (app, None, 0o755),
+                   (app + 'grok-bot', f'#!/bin/sh\necho "grok-bot {version} $*"\n'.encode(), 0o755),
+                   (app + 'chrome-sandbox', b'sandbox', 0o4755),
+                   (app + 'resources/', None, 0o755), (app + 'resources/app.asar', b'asar', 0o644),
+                   ('./usr/', None, 0o755), ('./usr/bin/', None, 0o755),
+                   ('./usr/bin/grok-bot', None, 0o777, '/opt/Grok Bot/grok-bot'),
+                   ('./usr/share/applications/grok-bot.desktop', b'[Desktop Entry]\nExec=/opt/Grok Bot/grok-bot\n', 0o644),
+                   ('./usr/share/icons/hicolor/16x16/apps/grok-bot.png', b'PNG16', 0o644),
+                   ('./usr/share/icons/hicolor/512x512/apps/grok-bot.png', b'PNG512', 0o644),
+                   ('./usr/share/doc/grok-bot/changelog.gz', b'gz', 0o644),
+                   ('./etc/apt/sources.list.d/grok-bot.sources', b'Types: deb\n', 0o644),
+                   *extra]
+        control = tar_xz([('./control', f'Package: grok-bot\nVersion: {version}\n'.encode(), 0o644)])
+        return ar([('debian-binary', b'2.0\n'), ('control.tar.xz', control), ('data.tar.xz', tar_xz(entries))])
+
+    home = work / 'home'
+    home.mkdir()
+    packages = work / 'packages'
+    packages.mkdir()
+
+    def publish(version, extra=(), raw=None):
+        path = packages / f'grok-bot_{version}.deb'
+        path.write_bytes(raw if raw is not None else deb(version, extra))
+        manifest = packages / f'manifest-{version}.json'
+        manifest.write_text(json.dumps({'version': version, 'debUrl': path.as_uri(), 'commitSha': 'c' * 40}))
+        return manifest.as_uri()
+
+    env.update(HOME=str(home), VIKIX_GROK_DIR=str(store))
+    for name in ('XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'DRY_RUN'):
+        env.pop(name, None)
+    data = home / '.local/share'
+    app = data / 'vikix/grok-bot'
+    exe = home / '.local/bin/grok-bot'
+    entry = data / 'applications/grok-bot.desktop'
+    icon = data / 'icons/hicolor/16x16/apps/grok-bot.png'
+    features = home / '.config/vikix/features'
+
+    env['VIKIX_GROK_MANIFEST'] = 'file:///nonexistent/manifest.json'
+    env['DRY_RUN'] = '1'
+    assert 'would ask' in run('install').stdout, 'a dry run installs nothing and asks nothing'
+    assert 'would remove' in run('uninstall').stdout
+    assert not (home / '.local').exists()
+    del env['DRY_RUN']
+    assert 'not found on PATH' in run('status').stdout
+    p = run('install', ok=False)
+    assert "couldn't read" in p.stderr and not app.exists(), p.stderr
+
+    env['VIKIX_GROK_MANIFEST'] = publish('0.75.0')
+    out = run('install').stdout
+    assert '0.75.0 is installed' in out, out
+    assert exe.is_symlink() and os.readlink(exe) == str(app / 'app/grok-bot')
+    hello = subprocess.run([str(exe), 'hello'], capture_output=True, text=True, timeout=10)
+    assert hello.stdout == 'grok-bot 0.75.0 hello\n', hello
+    assert not (app / 'app/chrome-sandbox').stat().st_mode & stat.S_ISUID, 'no SUID comes out of the package'
+    assert not (home / 'etc').exists() and not list(app.rglob('*.sources')), 'the apt source is never unpacked'
+    assert not (app / 'app/grok-bot.desktop').exists() and not list(app.rglob('changelog.gz'))
+    assert entry.read_text().startswith('[Desktop Entry]') and f'Exec={exe} %U' in entry.read_text()
+    assert icon.read_bytes() == b'PNG16' and (data / 'icons/hicolor/512x512/apps/grok-bot.png').exists()
+    release = json.loads((app / 'release.json').read_text())
+    assert release['version'] == '0.75.0' and release['commit'] == 'c' * 40 and len(release['sha512']) == 128
+    assert 'grok-bot' in features.read_text().split(), features.read_text()
+    env['PATH'] = f"{exe.parent}:{env['PATH']}"
+    assert 'Grok Bot 0.75.0' in run('status').stdout, run('status').stdout
+    assert 'installed already' in run('install').stdout
+    assert 'is installed:' in run('install', '--force').stdout
+
+    env['VIKIX_GROK_MANIFEST'] = publish('0.76.0')
+    assert '0.76.0 is installed' in run('install').stdout
+    assert subprocess.run([str(exe)], capture_output=True, text=True, timeout=10).stdout == 'grok-bot 0.76.0 \n'
+    assert not (data / 'vikix/grok-bot.old').exists() and not (data / 'vikix/grok-bot.new').exists()
+
+    # A package that reaches outside its folder, or lies about itself, installs nothing and leaves 0.76.0.
+    for bad in (publish('0.77.0', [('./opt/Grok Bot/' + '../' * 12 + 'escape', b'x', 0o644)]),
+                publish('0.77.1', [('./opt/Grok Bot/passwd', None, 0o777, '/etc/passwd')]),
+                publish('0.77.2', raw=b'<html>not a package</html>'),
+                publish('0.77.3', raw=ar([('debian-binary', b'2.0\n'), ('control.tar.xz', b'')])),
+                publish('0.77.4', raw=deb('0.77.4').replace(b'2.0\n', b'3.0\n', 1))):
+        env['VIKIX_GROK_MANIFEST'] = bad
+        p = run('install', ok=False)
+        assert json.loads((app / 'release.json').read_text())['version'] == '0.76.0', p.stderr
+        assert not (data / 'vikix/grok-bot.new').exists(), 'a failed install leaves no half'
+        assert not (home / 'escape').exists() and not (data / 'escape').exists()
+    broken = packages / 'manifest-bad.json'
+    broken.write_text(json.dumps({'version': 'latest', 'debUrl': 'file:///x'}))
+    env['VIKIX_GROK_MANIFEST'] = broken.as_uri()
+    assert 'known shape' in run('install', ok=False).stderr
+    broken.write_text(json.dumps({'version': '0.78.0', 'debUrl': 'http://example.com/grok.deb'}))
+    assert 'only https' in run('install', ok=False).stderr
+
+    # Something else at ~/.local/bin/grok-bot is moved aside, never deleted.
+    env['VIKIX_GROK_MANIFEST'] = publish('0.79.0')
+    run('uninstall')
+    assert not exe.exists() and not app.exists() and not entry.exists() and not icon.exists()
+    assert 'grok-bot' not in features.read_text().split()
+    queue = home / '.local/share/vikix/grok'
+    queue.mkdir(parents=True)
+    (queue / 'tasks.db').write_text('keep')
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    exe.write_text('#!/bin/sh\necho mine\n')
+    assert 'moved to' in run('install').stdout
+    aside = [p for p in exe.parent.iterdir() if p.name.startswith('grok-bot.vikix-bak.')]
+    assert len(aside) == 1 and aside[0].read_text() == '#!/bin/sh\necho mine\n'
+    run('uninstall')
+    assert (queue / 'tasks.db').read_text() == 'keep', 'the queue outlives the program'
+    assert aside[0].exists()
+    assert 'is gone' in run('uninstall').stdout, 'uninstalling twice is fine'
+
+
+print('grok: CLI handoff, atomic claims, review, retries, cancellation, bounded inputs, inert results, and the install from a package (nothing of it run, nothing outside its folder, the queue kept) passed')
 PY

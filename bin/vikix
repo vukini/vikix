@@ -150,8 +150,8 @@
 #   vikix records search|list|get|export|forget|stats
 #                         what plugins found and kept (flights, meetings,
 #                         plan use ...), searchable (vikix records help)
-#   vikix grok new|list|show|prompt|claim|result|fail|accept|cancel|status|instructions
-#                         local briefs and reviewed results for Grok Bot
+#   vikix grok new|list|show|prompt|claim|result|fail|accept|cancel|status|instructions|install|uninstall
+#                         local briefs and reviewed results for Grok Bot, and Grok Bot itself
 #   vikix plugin list|add|remove|off|on|safe|status
 #                         small additions from the vikix-plugins repo: bar
 #                         words, Super+m entries, keys (vikix plugin help)

@@ -20,6 +20,12 @@
   vikix grok cancel ID     cancel a queued, running, or failed task, or a result
   vikix grok status        client availability and local queue counts;
                           this does not test Grok's account or connection
+  vikix grok install [--force]
+                          Grok Bot itself, xAI's agent desktop app: its current
+                          Linux release (the .deb, unpacked as you, no root) into
+                          ~/.local/share/vikix/grok-bot, grok-bot in ~/.local/bin
+                          and a launcher entry; again for a newer release
+  vikix grok uninstall     takes Grok Bot away; the queue and its own settings stay
 
 Tasks are local, in ~/.local/share/vikix/grok/tasks.db (private, backed up).
 VIKIX_GROK_DIR overrides that directory. Creating a task sends nothing;
@@ -31,18 +37,31 @@ automatic retry, remote API, service, or Office worker launched by this
 helper. A failed task remains readable; create a new task to retry it.
 Keep Grok's local execution policy at Ask every time. This helper is a
 handoff convention, not a sandbox around Grok's other local commands.
+
+Grok Bot comes as a .deb, an .rpm and an AppImage; Void has none of their
+tools, so install asks xAI's release list for the current .deb, unpacks its
+app folder (/opt/Grok Bot) with Python alone and links the program: nothing
+of the package runs while it is put in, and nothing outside your home is
+touched. Unpacked, it can't update itself: install again brings the release
+of the day. vikix add grok-bot is the same as a feature.
 """
 import argparse
 import datetime
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import sqlite3
 import stat
 import subprocess
 import sys
+import tarfile
+import time
+import urllib.request
 import uuid
 from urllib.parse import urlsplit
 
@@ -219,6 +238,302 @@ def notify(task_id, state):
         pass  # A committed result must survive a missing notification service.
 
 
+# --- Installing Grok Bot ------------------------------------------------------
+#
+# xAI publishes Grok Bot for Linux through the same update server as Cursor
+# (the product's code name there is "sand"): a JSON manifest a build names
+# the current stable's version, commit and the .deb, .rpm and AppImage URLs,
+# with no checksum. Void has no dpkg, and the AppImage would need FUSE, so
+# the .deb is read here: an ar archive of debian-binary, control.tar.* and
+# data.tar.*, and only what is wanted of the data (the app folder, the icons)
+# is extracted, through tarfile's data filter, which refuses a path or a link
+# that would leave the folder. The package's postinst (an apt source, a SUID
+# chrome-sandbox where user namespaces are off) never runs: Void's kernel
+# gives Electron its user namespaces, so the sandbox needs no SUID.
+
+MANIFEST = 'https://api2.cursor.sh/updates/api/download/stable/linux-{arch}/sand'
+KEEP = ('opt/Grok Bot/', 'usr/share/icons/')
+VERSION = re.compile(r'\d+\.\d+\.\d+\Z')
+FEATURE = 'grok-bot'
+DESKTOP = """[Desktop Entry]
+# Vikix's, written by vikix grok install: Grok Bot, unpacked in {app}.
+Type=Application
+Name=Grok Bot
+Comment=xAI's agent desktop app, with a cloud computer of its own
+Exec={exe} %U
+Icon=grok-bot
+Terminal=false
+Categories=Utility;Network;
+"""
+
+
+def data_home():
+    return Path(os.environ.get('XDG_DATA_HOME') or Path.home() / '.local/share')
+
+
+def app_dir():
+    return data_home() / 'vikix/grok-bot'
+
+
+def launcher():
+    return Path.home() / '.local/bin/grok-bot'
+
+
+def desktop_file():
+    return data_home() / 'applications/grok-bot.desktop'
+
+
+def icon_file(size):
+    return data_home() / 'icons/hicolor' / size / 'apps/grok-bot.png'
+
+
+def dry_run():
+    return os.environ.get('DRY_RUN') == '1'
+
+
+def arch():
+    machine = platform.machine()
+    names = {'x86_64': 'x64', 'aarch64': 'arm64'}
+    if machine not in names:
+        raise Problem(f'Grok Bot has no Linux build for {machine} (x86_64 and aarch64 only)')
+    return names[machine]
+
+
+def open_url(url, timeout=60):
+    # file: URLs only for the tests' stand-in manifest (VIKIX_GROK_MANIFEST).
+    scheme = urlsplit(url).scheme
+    if scheme != 'https' and not (scheme == 'file' and os.environ.get('VIKIX_GROK_MANIFEST')):
+        raise Problem(f'refusing {url}: only https')
+    request = urllib.request.Request(url, headers={'User-Agent': 'vikix-grok'})
+    return urllib.request.urlopen(request, timeout=timeout)
+
+
+def release():
+    """The current stable: version, deb URL, commit."""
+    url = os.environ.get('VIKIX_GROK_MANIFEST') or MANIFEST.format(arch=arch())
+    try:
+        with open_url(url, 30) as reply:
+            data = json.loads(reply.read(65536).decode('utf-8'))
+    except (OSError, ValueError) as error:
+        raise Problem(f"couldn't read Grok Bot's release list ({url}): {error}")
+    if not isinstance(data, dict):
+        raise Problem(f'the release list at {url} is not of the known shape')
+    version, deb, commit = data.get('version'), data.get('debUrl'), data.get('commitSha', '')
+    if not isinstance(version, str) or not VERSION.fullmatch(version) or not isinstance(deb, str) or not deb:
+        raise Problem(f'the release list at {url} has no version and debUrl of the known shape')
+    return {'version': version, 'url': deb, 'commit': commit if isinstance(commit, str) else ''}
+
+
+def download(url, dest, limit=2 * 1024 ** 3):
+    digest, size = hashlib.sha512(), 0
+    with open_url(url) as reply, open(dest, 'wb') as out:
+        while chunk := reply.read(1 << 20):
+            size += len(chunk)
+            if size > limit:
+                raise Problem(f'{url} is larger than {limit >> 30} GB: not a Grok Bot package')
+            digest.update(chunk)
+            out.write(chunk)
+    if not size:
+        raise Problem(f'{url} was empty')
+    return digest.hexdigest(), size
+
+
+class Slice(io.RawIOBase):
+    """A read-only view of SIZE bytes of PATH from OFFSET: one ar member."""
+
+    def __init__(self, path, offset, size):
+        self.file = open(path, 'rb')
+        self.file.seek(offset)
+        self.left = size
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        wanted = min(len(buffer), self.left)
+        if wanted <= 0:
+            return 0
+        got = self.file.readinto(memoryview(buffer)[:wanted])
+        self.left -= got
+        return got
+
+    def close(self):
+        self.file.close()
+        super().close()
+
+
+def deb_members(deb):
+    """The ar members of DEB: name -> (offset, size)."""
+    members = {}
+    with open(deb, 'rb') as file:
+        if file.read(8) != b'!<arch>\n':
+            raise Problem('not a Debian package (no ar header)')
+        position = 8
+        while True:
+            file.seek(position)
+            head = file.read(60)
+            if len(head) < 60:
+                break
+            name = head[:16].decode('ascii', 'replace').strip().rstrip('/')
+            try:
+                size = int(head[48:58].decode('ascii').strip())
+            except ValueError:
+                raise Problem('not a Debian package (a bad ar member header)')
+            members[name] = (position + 60, size)
+            position += 60 + size + size % 2
+        if 'debian-binary' not in members:
+            raise Problem('not a Debian package (no debian-binary member)')
+        offset, size = members['debian-binary']
+        file.seek(offset)
+        if file.read(size).strip() != b'2.0':
+            raise Problem('not a Debian package of format 2.0')
+    return members
+
+
+def unpack(deb, into):
+    """The app folder and the icons out of DEB, under INTO. The rest (the apt
+    source the package adds, /usr/bin's link, the docs) is left in it.
+    Returns how many members were kept and skipped."""
+    members = deb_members(deb)
+    data = [name for name in members if name.startswith('data.tar')]
+    if not data:
+        raise Problem('not a Debian package (no data.tar inside)')
+    offset, size = members[data[0]]
+    kept = skipped = 0
+    try:
+        with tarfile.open(fileobj=io.BufferedReader(Slice(deb, offset, size)), mode='r|*') as tar:
+            for member in tar:
+                path = member.name.removeprefix('./')
+                if not (path + '/' if member.isdir() else path).startswith(KEEP):
+                    skipped += 1
+                    continue
+                tar.extract(member, into, filter='data')
+                kept += 1
+    except tarfile.TarError as error:
+        raise Problem(f'the package is not as expected ({error}): nothing installed')
+    return kept, skipped
+
+
+def installed_release():
+    try:
+        data = json.loads((app_dir() / 'release.json').read_text())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get('version'), str) else None
+
+
+def features(verb):
+    """record_features or forget_features, from lib/features.sh, for the
+    feature's line in ~/.config/vikix/features (vikix add does the same)."""
+    root = Path(__file__).resolve().parent.parent
+    script = f'. "$1/lib/common.sh"; . "$1/lib/features.sh"; {verb} {FEATURE}'
+    try:
+        subprocess.run(['bash', '-c', script, 'bash', str(root)], timeout=60, check=False,
+                       env={**os.environ, 'VIKIX_DIR': str(root)}, stdout=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f'vikix grok: the feature was not {verb.split("_")[0]}ed ({error})', file=sys.stderr)
+
+
+def place():
+    """The launcher link, the launcher entry, the icons; once the app is in."""
+    exe, app = launcher(), app_dir()
+    target = app / 'app/grok-bot'
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    if exe.is_symlink():
+        if os.readlink(exe) != str(target):
+            exe.unlink()
+    elif exe.exists():
+        aside = exe.with_name(f'{exe.name}.vikix-bak.{int(time.time())}')
+        exe.rename(aside)
+        print(f':: {exe} was something else: moved to {aside}')
+    if not exe.is_symlink():
+        exe.symlink_to(target)
+    desktop_file().parent.mkdir(parents=True, exist_ok=True)
+    desktop_file().write_text(DESKTOP.format(app=app, exe=exe))
+    for icon in sorted((app / 'icons').glob('*.png')):
+        dest = icon_file(icon.stem)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(icon, dest)
+    features('record_features')
+    return exe
+
+
+def install(force=False):
+    home_app, parent = app_dir(), app_dir().parent
+    if dry_run():
+        print(f':: would ask {MANIFEST.format(arch=arch())} for the current Grok Bot, download its .deb,'
+              f' unpack its app folder into {home_app}, link {launcher()} and write {desktop_file()}')
+        return
+    had = installed_release()
+    current = release()
+    if (had and had['version'] == current['version'] and not force
+            and os.access(home_app / 'app/grok-bot', os.X_OK)):
+        place()
+        print(f":: Grok Bot {current['version']} is installed already (vikix grok install --force puts it in again)")
+        return
+    parent.mkdir(parents=True, exist_ok=True)
+    stage, old = parent / 'grok-bot.new', parent / 'grok-bot.old'
+    for leftover in (stage, old):
+        shutil.rmtree(leftover, ignore_errors=True)
+    stage.mkdir(mode=0o755)
+    try:
+        print(f":: downloading Grok Bot {current['version']}: {current['url']}")
+        deb = stage / 'grok-bot.deb'
+        digest, size = download(current['url'], deb)
+        print(f':: {size / 1e6:.0f} MB (SHA-512 {digest[:16]}...); unpacking')
+        raw = stage / 'unpacked'
+        kept, skipped = unpack(deb, raw)
+        binary = raw / 'opt/Grok Bot/grok-bot'
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            raise Problem('the package has no opt/Grok Bot/grok-bot to run: its layout changed; nothing installed')
+        binary.parent.rename(stage / 'app')
+        (stage / 'icons').mkdir()
+        for icon in sorted(raw.glob('usr/share/icons/hicolor/*/apps/grok-bot.png')):
+            icon.rename(stage / 'icons' / f'{icon.parents[1].name}.png')
+        shutil.rmtree(raw)
+        deb.unlink()
+        (stage / 'release.json').write_text(json.dumps({
+            'version': current['version'], 'commit': current['commit'], 'url': current['url'],
+            'sha512': digest, 'bytes': size, 'members': {'kept': kept, 'skipped': skipped},
+            'installed': now()}, indent=2) + '\n')
+    except BaseException:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+    if home_app.exists():
+        home_app.rename(old)
+    stage.rename(home_app)
+    shutil.rmtree(old, ignore_errors=True)
+    exe = place()
+    print(f":: Grok Bot {current['version']} is installed: {exe} (Super+m, AI, Grok Bot: open; or the palette)."
+          " It signs you in in your browser at the first start. In its settings keep Execution on Local Computer"
+          " at Ask every time (or Never allow); vikix grok new makes it a brief. Unpacked this way it can't"
+          " update itself: vikix grok install again brings the current release.")
+
+
+def uninstall():
+    exe, home_app = launcher(), app_dir()
+    if dry_run():
+        print(f':: would remove {home_app}, {exe}, {desktop_file()} and the icons, and forget the feature')
+        return
+    if exe.is_symlink() and os.readlink(exe).startswith(str(home_app) + '/'):
+        exe.unlink()
+    elif exe.exists() or exe.is_symlink():
+        print(f":: {exe} isn't Vikix's link to Grok Bot: left as it is")
+    icons = sorted((home_app / 'icons').glob('*.png')) if (home_app / 'icons').is_dir() else []
+    for icon in icons:
+        dest = icon_file(icon.stem)
+        if dest.is_file():
+            dest.unlink()
+    entry = desktop_file()
+    if entry.is_file() and 'vikix grok install' in entry.read_text(errors='replace'):
+        entry.unlink()
+    if home_app.exists():
+        shutil.rmtree(home_app)
+    features('forget_features')
+    print(":: Grok Bot is gone. Its own sign-in and settings (under ~/.config) and the task queue"
+          f" ({directory() / 'tasks.db'}) stay; vikix grok install brings it back.")
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv == ['help']:
@@ -244,9 +559,17 @@ def main(argv=None):
             sub.add_argument('reason')
     subs.add_parser('instructions')
     subs.add_parser('status')
+    subs.add_parser('install').add_argument('--force', action='store_true')
+    subs.add_parser('uninstall')
     args = parser.parse_args(argv)
     if args.command == 'instructions':
         print(instructions().replace('/home/USER', str(Path.home())))
+        return
+    if args.command == 'install':
+        install(args.force)
+        return
+    if args.command == 'uninstall':
+        uninstall()
         return
     # Validate external input before opening or changing the store.
     if args.command == 'new':
@@ -270,7 +593,10 @@ def main(argv=None):
         elif args.command in ('list', 'status'):
             rows = [dict(r) for r in db.execute('SELECT id,title,project,state,created,updated FROM tasks ORDER BY created DESC,id DESC')] if db else []
             if args.command == 'status':
-                print('Client:', shutil.which('grok-bot') or 'not found on PATH')
+                client, had = shutil.which('grok-bot'), installed_release()
+                if client and had:
+                    client += f" (Grok Bot {had['version']}, by vikix grok install on {had.get('installed', '?')[:10]})"
+                print('Client:', client or 'not found on PATH (vikix grok install, or vikix add grok-bot)')
                 print('Queue:', directory() / 'tasks.db')
                 print('Connection: not probed; verify in Grok Bot with a local command')
                 for state in STATES:

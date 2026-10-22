@@ -145,7 +145,7 @@ The everyday command.
 - `vikix wallpapers setup|update|status|uninstall` — Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
 - `vikix obsidian [convert FOLDER...|--all] [report FOLDER]` — an Obsidian vault into Org notes, a folder at a time, links kept (`~/Dropbox/notes/vault`)
 - `vikix records search|list|get|export|forget|stats` — what plugins found and kept (flights, meetings, plan use ...), searchable (vikix records help)
-- `vikix grok new|list|show|prompt|claim|result|fail|accept|cancel|status|instructions` — local briefs and reviewed results for Grok Bot
+- `vikix grok new|list|show|prompt|claim|result|fail|accept|cancel|status|instructions|install|uninstall` — local briefs and reviewed results for Grok Bot, and Grok Bot itself
 - `vikix plugin list|add|remove|off|on|safe|status` — small additions from the vikix-plugins repo: bar words, Super+m entries, keys (vikix plugin help)
 - `vikix bitwarden setup|pick|lock|sync|status|uninstall` — your Bitwarden vault: Super+Alt+v types a password into any window (vikix add bitwarden)
 - `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
@@ -726,8 +726,12 @@ Local task briefs and reviewed results for Grok Bot.
 - `vikix grok accept ID` — mark a result reviewed; applies no files or code
 - `vikix grok cancel ID` — cancel a queued, running, or failed task, or a result
 - `vikix grok status` — client availability and local queue counts; this does not test Grok's account or connection
+- `vikix grok install [--force]` — Grok Bot itself, xAI's agent desktop app: its current Linux release (the .deb, unpacked as you, no root) into `~/.local/share/vikix/grok-bot`, grok-bot in `~/.local/bin` and a launcher entry; again for a newer release
+- `vikix grok uninstall` — takes Grok Bot away; the queue and its own settings stay
 
 Tasks are local, in `~/.local/share/vikix/grok/tasks.db` (private, backed up). `VIKIX_GROK_DIR` overrides that directory. Creating a task sends nothing; paste its prompt into Grok Bot and approve its local commands. The Bot returns summary, sources, artifacts, and questions as JSON. Sources and artifacts are HTTP(S) links, never automatically fetched or executed. States: queued, running, review, accepted, failed, cancelled. There is no automatic retry, remote API, service, or Office worker launched by this helper. A failed task remains readable; create a new task to retry it. Keep Grok's local execution policy at Ask every time. This helper is a handoff convention, not a sandbox around Grok's other local commands.
+
+Grok Bot comes as a .deb, an .rpm and an AppImage; Void has none of their tools, so install asks xAI's release list for the current .deb, unpacks its app folder (/opt/Grok Bot) with Python alone and links the program: nothing of the package runs while it is put in, and nothing outside your home is touched. Unpacked, it can't update itself: install again brings the release of the day. vikix add grok-bot is the same as a feature.
 
 ## vikix-hype
 

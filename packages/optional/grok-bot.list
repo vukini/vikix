@@ -1,0 +1,17 @@
+# grok-bot.list — what Grok Bot's program needs (the feature grok-bot): the
+# libraries its .deb depends on, which a Chromium-based desktop app loads.
+# Firefox brings most of them already; these are named so that a machine
+# without it has them too.
+gtk+3
+nss
+libXScrnSaver
+libXtst
+at-spi2-core
+libsecret        # the system keyring, where it keeps your sign-in
+alsa-lib
+mesa
+libxkbcommon
+libdrm
+libnotify
+libuuid
+xdg-utils

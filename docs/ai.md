@@ -118,9 +118,32 @@ Agents run side by side, each in a terminal of its own, and a row of windows all
 
 ## Grok Bot handoffs
 
-Give Grok Bot a research brief and keep its answer in Vikix for review. `vikix grok` keeps a local task queue: you choose a brief, paste the task's prompt into Grok Bot, and approve its local commands to collect the brief and return a result. Grok Bot needs to be installed and signed in separately. Keep its **Execution on Local Computer** setting at **Ask every time**.
+[Grok Bot](https://x.ai/bot) is xAI's agent desktop app: Bots that work on a cloud computer of their own, and may, with your approval, run commands on this one. Give it a research brief and keep its answer in Vikix for review. `vikix grok` keeps a local task queue: you choose a brief, paste the task's prompt into Grok Bot, and approve its local commands to collect the brief and return a result. Keep its **Execution on Local Computer** setting (Settings → General → Bot) at **Ask every time**, or **Never allow** while you have no reason for it to touch this computer.
 
-Open it from `Super+m` → *AI* → *Grok Bot: open* (shown when `~/.local/bin/grok-bot` is installed). The neighbouring *Grok Bot: list tasks* opens the queue in a terminal.
+### Installing it
+
+```sh
+vikix add grok-bot        # the libraries its program loads (packages/optional/grok-bot.list), then vikix grok install
+```
+
+xAI publishes Grok Bot for Linux as a `.deb`, an `.rpm` and an AppImage, and Void has the tools for none of them; there is no Flatpak. So Vikix asks xAI's release list for the current `.deb`, downloads it, and unpacks its app folder with Python alone into `~/.local/share/vikix/grok-bot`, with `~/.local/bin/grok-bot` linked to the program, a launcher entry for the palette, and its icons: nothing of the package runs while it is put in, nothing needs root, and nothing outside your home changes (the package's own install script would add an apt source and a setuid helper; Void's kernel gives Electron the user namespaces it uses instead). At the first start it signs you in in your browser. Unpacked this way it can't update itself, and its *Check for Updates* finds nothing: `vikix grok install` again brings the release of the day (it says so when you have it already; `--force` puts it in again). `vikix grok status` shows the version you have. `vikix remove grok-bot` (or `vikix grok uninstall`) takes the program away and leaves its sign-in and settings, under `~/.config`, and the task queue.
+
+Open it from `Super+m` → *AI* → *Grok Bot: open* (shown when `~/.local/bin/grok-bot` is there), or from the palette. The neighbouring *Grok Bot: list tasks* opens the queue in a terminal.
+
+**On a plain Void, without Vikix**, the same works by hand, since nothing in it is Vikix's. The release list is JSON naming the current `.deb` (`linux-arm64` for an ARM machine); a `.deb` is an `ar` archive with the files in `data.tar.xz`, and `bsdtar`, one small package, reads both. The program needs the libraries Chromium needs, which a desktop with a browser has already:
+
+```sh
+sudo xbps-install bsdtar gtk+3 nss libXScrnSaver libXtst at-spi2-core libsecret alsa-lib mesa libxkbcommon libdrm libnotify libuuid xdg-utils
+url=$(curl -fsSL https://api2.cursor.sh/updates/api/download/stable/linux-x64/sand | sed 's/.*"debUrl":"\([^"]*\)".*/\1/')
+curl -fsSL -o /tmp/grok-bot.deb "$url"
+mkdir -p ~/.local/share/grok-bot ~/.local/bin
+bsdtar -xOf /tmp/grok-bot.deb data.tar.xz | tar -xJ -C ~/.local/share/grok-bot --strip-components=3 './opt/Grok Bot'
+ln -sf ~/.local/share/grok-bot/grok-bot ~/.local/bin/grok-bot
+```
+
+Then `grok-bot` starts it (`~/.local/bin` on your PATH). To update, run the same again; to remove, delete the two things it made. Leave the package's own install script be: it is for Debian (an apt source, a setuid `chrome-sandbox` for kernels without user namespaces, which Void's has).
+
+### Handing it a brief
 
 Start with a text file containing the task, the sources it may use, and what a useful answer should include. For example, `brief.txt` could ask for a comparison of two libraries using their public documentation. Then, in your terminal:
 
