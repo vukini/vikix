@@ -1856,15 +1856,17 @@ the class with another instance (an Alacritty started with --class)."
 
 (defun vikix-remember-ways (window &key emacs-named)
   "The ways a rule can know WINDOW, the one to offer first: :class,
-:instance, :title. An Emacs frame with a name of its own goes by its title,
+:instance, :role, :title. An Emacs frame with a name of its own goes by its title,
 matched whole: every Emacs frame has the same class. EMACS-NAMED says an
 Emacs frame has a name of its own (vikix-remember-emacs-named-p, asked by
 the caller)."
   (let* ((class (or (ignore-errors (window-class window)) ""))
          (instance (or (ignore-errors (window-res window)) ""))
+         (role (or (ignore-errors (window-role window)) ""))
          (title (or (ignore-errors (window-title window)) ""))
          (ways (remove nil (list (and (plusp (length class)) :class)
-                                 (and (plusp (length instance)) (not (equalp instance class)) :instance)
+                                 (and (plusp (length instance)) :instance)
+                                 (and (plusp (length role)) :role)
                                  (and (plusp (length title)) :title))))
          (first (cond ((and (equal class "Emacs") (member :title ways) emacs-named) :title)
                       ((and (member :instance ways) (vikix-remember-instance-tells-p window)) :instance)
@@ -1881,6 +1883,10 @@ call it in the rule's name."
     (ecase way
       (:class (values (list :class class) class))
       (:instance (values (list :instance instance) instance))
+      (:role (let ((role (window-role window)))
+               (values (append (and (plusp (length class)) (list :class class))
+                               (list :role role))
+                       (format nil "~a role ~s" class role))))
       (:title (if (plusp (length class))
                   (values (list :class class :title title) (format nil "~a ~s" class title))
                   (values (list :title title) (format nil "~s" title)))))))
@@ -1915,14 +1921,44 @@ has no workspace of its own: it is floated and kept everywhere."
           (float `((workspace ,workspace) ,float))
           (t `((workspace ,workspace))))))
 
-(defun vikix-remember-rule (window &key way workspace-only)
+(defun vikix-remember-rule (window &key way ways workspace-only (action :current) layout)
   "The rule that remembers WINDOW: (values FORM NAME). WAY is how to know
 it (the first of vikix-remember-ways when not given)."
   (let ((way (or way (first (vikix-remember-ways window))
-                 (error "This window has no class, instance or title to know it by."))))
+                 (error "This window has no class, instance, role or title to know it by."))))
     (multiple-value-bind (match words) (vikix-remember-match window way)
+      (when ways
+        (setf match (loop for key in '(:class :instance :role :title)
+                          when (member key ways)
+                            append (list key (ecase key
+                                               (:class (window-class window))
+                                               (:instance (window-res window))
+                                               (:role (window-role window))
+                                               (:title (window-title window)))))
+              words (format nil "~{~a~^ ~}"
+                            (loop for (key value) on match by #'cddr
+                                  collect (format nil "~(~a~) ~s" key value)))))
+      ;; Equivalent matchers keep their old name, so customizing actions
+      ;; replaces the quick rule rather than adding a duplicate beside it.
+      (let ((same (find-if (lambda (key) (equal match (vikix-remember-match window key)))
+                           (vikix-remember-ways window))))
+        (when same (setf words (nth-value 1 (vikix-remember-match window same)))))
       (let ((name (format nil "remembered: ~a" words)))
-        (values `(when-window ,match :name ,name ,@(vikix-remember-verbs window :workspace-only workspace-only))
+        (values `(when-window ,match :name ,name
+                   ,@(if workspace-only
+                         (vikix-remember-verbs window :workspace-only t)
+                         (ecase action
+                           (:current (vikix-remember-verbs window))
+                           (:workspace (vikix-remember-verbs window :workspace-only t))
+                           (:float (append (vikix-remember-verbs window :workspace-only t)
+                                           (list (or (find 'float (vikix-remember-verbs window) :key #'first)
+                                                     '(float :own t)))))
+                           (:sticky (list (or (find 'float (vikix-remember-verbs window) :key #'first)
+                                              '(float :own t)) '(sticky)))
+                           (:layout (unless (and (stringp layout) (plusp (length layout)))
+                                      (error "Choose a saved layout first."))
+                                    (append (vikix-remember-verbs window :workspace-only t)
+                                            (list (list 'layout layout)))))))
                 name)))))
 
 ;;; The file
@@ -2068,31 +2104,72 @@ into ~/.stumpwm.d/rules.lisp. The rule is shown first."
                         (lambda (named) (vikix-remember-ask window named))))
           (t (vikix-remember-ask window nil)))))
 
+(defun vikix-remember-choose (window emacs-named)
+  "Return the settings only after Write it; changing choices never writes."
+  (let* ((available (vikix-remember-ways window :emacs-named emacs-named))
+         (way (first available))
+         ;; Keep the existing quick choice, including named Emacs frames.
+         ;; Custom choices use only the properties explicitly selected.
+         (ways nil)
+         (action :current)
+         (layout nil))
+    (unless way
+      (message "This window has no class, instance, role or title for a rule.")
+      (return-from vikix-remember-choose nil))
+    (loop
+      (unless (member window (all-windows))
+        (message "That window is gone.")
+        (return nil))
+      (let* ((keys (list :way way :ways ways :action action :layout layout))
+             (form (apply #'vikix-remember-rule window keys))
+             (selected (or ways (loop for (key value) on (vikix-remember-match window way)
+                                      by #'cddr collect key)))
+             (choice
+               (vikix-ask
+                "Remember this window: change choices, then Write it (Escape cancels)"
+                (append
+                 (list (list (format nil "Write it: ~a"
+                                     (vikix-rules-carets (vikix-rules-print form))) :write))
+                 (loop for key in available
+                       collect (list (format nil "Match ~(~a~) [~a]: ~a~a" key
+                                             (if (member key selected) "yes" "no")
+                                             (vikix-rules-carets
+                                              (vikix-one-line
+                                               (getf (vikix-remember-match window key) key) 60))
+                                             (if (eq key :title) " (exact title; may change)" ""))
+                                     (list :match key)))
+                 (loop for (key label) in '((:current "Remember its current placement")
+                                           (:workspace "Remember only this workspace")
+                                           (:float "Float here at this size (own size if tiled)")
+                                           (:sticky "Pin on every workspace (floating)"))
+                       collect (list (format nil "~a~a" (if (eq action key) "* " "") label)
+                                     (list :action key)))
+                 (list (list "Restore a saved layout on this workspace..." '(:layout))
+                       '("Cancel" nil))))))
+        (cond ((null choice) (return nil))
+              ((eq choice :write) (return keys))
+              ((eq (first choice) :match)
+               (let* ((key (second choice))
+                      (next (if (member key selected) (remove key selected)
+                                (append selected (list key)))))
+                 (if next (setf ways next)
+                     (message "Keep at least one property to identify the window."))))
+              ((eq (first choice) :action) (setf action (second choice)))
+              ((eq (first choice) :layout)
+               (let* ((names (vikix-layout-names))
+                      (picked (and names
+                                   (vikix-ask "Restore the whole workspace layout when this window opens"
+                                              (append (mapcar (lambda (name) (list name name)) names)
+                                                      '(("Cancel" nil)))))))
+                 (cond (picked (setf action :layout layout picked))
+                       ((null names) (message "No saved layouts. Save one first."))))))))))
+
 (defun vikix-remember-ask (window emacs-named)
   "The dialog of vikix-remember for WINDOW (EMACS-NAMED as
 vikix-remember-ways takes it), and the rule written on yes."
   (if (not (member window (all-windows)))
       (message "That window is gone.")
-      (let* ((ways (or (vikix-remember-ways window :emacs-named emacs-named)
-                       (return-from vikix-remember-ask
-                         (message "This window has no class, instance or title for a rule to know it by."))))
-             (placed (or (typep window 'float-window) (member window *always-show-windows*)))
-             (words (lambda (way)
-                      (ecase way (:class "its class") (:instance "its instance") (:title "its title, exactly"))))
-             (label (lambda (start &rest keys)
-                      (format nil "~a  ~a" start
-                              (vikix-rules-carets (vikix-one-line (vikix-rules-print (apply #'vikix-remember-rule window keys)) 140)))))
-             (choice (vikix-ask "Remember this window here? The rule goes into ~/.stumpwm.d/rules.lisp"
-                                (append
-                                 (list (list (funcall label "Write it:") (list :way (first ways))))
-                                 (and placed
-                                      (list (list (funcall label "Its workspace only:" :workspace-only t)
-                                                  (list :way (first ways) :workspace-only t))))
-                                 (mapcar (lambda (way)
-                                           (list (funcall label (format nil "Known by ~a instead:" (funcall words way)) :way way)
-                                                 (list :way way)))
-                                         (rest ways))
-                                 '(("Cancel" nil))))))
+      (let ((choice (vikix-remember-choose window emacs-named)))
         (when choice
           (flet ((failed (e)
                    (vikix-error-report e "remembering a window" nil)

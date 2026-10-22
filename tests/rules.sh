@@ -49,7 +49,21 @@ real_home=$HOME
 ql=${VIKIX_QUICKLISP:-$HOME/quicklisp}
 t=$(mktemp -d)
 pids=()
-cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$t"; }
+cleanup() {
+  local p alive
+  for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
+  for _ in 1 2 3 4 5 6; do
+    alive=0
+    for p in "${pids[@]}"; do kill -0 "$p" 2>/dev/null && alive=1; done
+    [ "$alive" = 0 ] && break
+    sleep 0.5
+  done
+  for p in "${pids[@]}"; do
+    if kill -0 "$p" 2>/dev/null; then kill -KILL "$p" 2>/dev/null || true; fi
+    wait "$p" 2>/dev/null || true
+  done
+  rm -rf "$t"
+}
 trap cleanup EXIT
 fail=0
 said=()
@@ -255,6 +269,10 @@ LISP
 (check "known by its title: the class too, the title whole, and a name that says both"
        (multiple-value-bind (match words) (vikix-remember-match (win "Emacs" :res "emacs" :title "Esploro") :title)
          (and (equal match '(:class "Emacs" :title "Esploro")) (equal words "Emacs \"Esploro\""))))
+(check "role is offered when present and is scoped to its application"
+       (let ((w (win "Firefox" :role "pop-up")))
+         (and (member :role (vikix-remember-ways w))
+              (equal (vikix-remember-match w :role) '(:class "Firefox" :role "pop-up")))))
 (check "a share of the monitor is a whole number of percent" (equal (vikix-remember-share 640 1280) "50%"))
 
 ;; The file: made when it isn't there, with its first lines.
@@ -1010,6 +1028,47 @@ LISP
   else
     echo "rules: no xdotool here; the key that remembers a window left out"
   fi
+  local before_choices
+  before_choices=$(sha256sum "$home/.stumpwm.d/rules.lisp")
+  # Drive the chooser in the isolated desktop, with a stand-in menu. Its
+  # answers exercise the same loop as the key; nothing is written on edits.
+  ask '(defun remember-choices-test (window answers)
+          (let ((old (symbol-function (quote vikix-ask))) (seen nil))
+            (unwind-protect
+                (progn
+                  (setf (symbol-function (quote vikix-ask))
+                        (lambda (question choices)
+                          (declare (ignore question))
+                          (push choices seen)
+                          (pop answers)))
+                  (let ((keys (vikix-remember-choose window nil)))
+                    (values (and keys (apply (function vikix-remember-rule) window keys)) seen)))
+              (setf (symbol-function (quote vikix-ask)) old))))' >/dev/null
+  check "matcher edits and pinning are previewed before save" yes "
+    (multiple-value-bind (form menus)
+        (remember-choices-test $(the Mid) (list (list :match :title) (list :action :sticky) :write))
+      (and (equal (second form) (list :class (window-class $(the Mid)) :title (window-title $(the Mid))))
+           (equal (car (last form)) '(sticky))
+           (not (find 'workspace (cddddr form) :key (function car)))
+           (search \"(sticky)\" (caar (first menus)))))"
+  check "Escape discards edited choices" yes "
+    (null (remember-choices-test $(the Mid) (list (list :action :sticky) nil)))"
+  check "last identifying property cannot be switched off" yes "
+    (equal (second (remember-choices-test $(the Mid) (list (list :match :class) :write)))
+           (list :class (window-class $(the Mid))))"
+  check "workspace only leaves size out" yes "
+    (equal (cdddr (remember-choices-test $(the Mid) (list (list :action :workspace) :write)))
+           (list \"remembered: Mid\" '(workspace 1)))"
+  ask '(vikix-layout-save "remember-test")' >/dev/null
+  check "saved layout choice restores this workspace and names the layout" yes "
+    (let ((form (remember-choices-test $(the Mid) (list (list :layout) \"remember-test\" :write))))
+      (equal (last form 2) '((workspace 1) (layout \"remember-test\"))))"
+  check "floating a tiled window keeps its own size" yes "
+    (equal (last (vikix-remember-rule $(the ToTwo) :action :float)) '((float :own t)))"
+  check "editing and cancelling choices never writes rules.lisp" test "$before_choices" "=" "$(sha256sum "$home/.stumpwm.d/rules.lisp")"
+  check "customizing an equivalent matcher keeps the quick rule name" yes "
+    (equal (nth-value 1 (vikix-remember-rule $(the Mid) :ways '(:class) :action :sticky))
+           \"remembered: Mid\")"
   out=$(rules forget "remembered: Kept")
   check "vikix rules forget takes a rule out of rules.lisp and off the desktop: $out" \
     bash -c "! grep -q 'remembered: Kept' '$home/.stumpwm.d/rules.lisp' && grep -q 'Taken out of' <<<'$out'"

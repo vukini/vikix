@@ -21,7 +21,9 @@ A rule works in `~/.stumpwm.d/user.lisp` too, and that is the place for one that
 
 You don't have to write a rule to get one. Put a window where you want it: on its workspace, and if it floats, at the size and place you like. Then press `Super+Shift+t`.
 
-The rule that would put a window like it there is shown first. Choose *Write it* and it is added to `rules.lisp` under a dated comment, named `"remembered: ..."`, after a snapshot of your files. The menu also offers the workspace alone (for a floating window, without its size and place), and another way to know the window: its instance or its title instead of its class.
+The rule that would put a window like it there is shown first. Choose *Write it* and it is added to `rules.lisp` under a dated comment, named `"remembered: ..."`, after a snapshot of your files. Press Enter on the first row to keep this quick choice. To customize it, toggle the properties that identify the window: class, instance, role or exact title. Properties selected together must all match. Empty properties are left out; at least one must stay selected. Title is off in the usual class/instance choice because titles change; named Emacs frames keep their existing class-and-title quick choice.
+
+Choose what the rule remembers: the current placement; just this workspace; floating here at this size (a tiled window uses its own size); pinned on every workspace (always floating); or a saved layout restored on this workspace. A layout restores the whole workspace arrangement when a matching window opens. The first row previews the resulting rule after each change. Choose *Write it* to save; Escape or Cancel discards the choices without writing a file or moving a window.
 
 Remembering the same window again replaces its rule. `vikix rules forget 3` takes a rule out of `rules.lisp` again, by its number or its name, and `vikix undo` puts the file back. Only `rules.lisp` is ever written this way, never `user.lisp`.
 
