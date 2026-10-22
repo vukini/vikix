@@ -21,6 +21,11 @@ doesn't know is refused with its number: this file and the backend come
 from the same checkout, so the page is stale, and Emacs loads it again.")
 (defvar-local vikix-office--data nil)
 (defvar-local vikix-office--selected nil)
+(defvar-local vikix-office--fresh nil
+  "The next draw is of another page: it starts at the top, point on the
+row selected.")
+(defvar-local vikix-office--shows nil
+  "The desk pane's: the selection its page was last drawn for.")
 (defvar-local vikix-office--detail nil)
 (defvar-local vikix-office--owner nil)
 (defvar-local vikix-office--frame nil)
@@ -958,14 +963,94 @@ they run, and New worker… when it stands with nobody at it."
                                                                (setq vikix-office--selected id)
                                                                (vikix-office-worker)))))))))
 
+;; The view across a redraw.  Every refresh erases the buffer and draws
+;; it again, so a position in it means nothing after: a time written a
+;; character longer above, a row come or gone, and the same number is
+;; another line.  What a window shows, and where point is, are kept as
+;; the line itself instead, an anchor (the row's id and how many lines
+;; into the row; else the nearest text at or below and how far down it
+;; is, a number in it allowed to change; the line's number as the last
+;; resort), found again once the buffer is drawn.  And the window's start
+;; is put back forced, so the lines being read stay where they were and
+;; point follows them, never the view point: put back the other way, as
+;; it was, the text moved at every refresh (2026-10-22).
+(defun vikix-office--anchor (pos)
+  "POS as what finds its line again after a redraw: a list of the row's id
+at the line and how many lines into the row, the nearest text at or
+below the line and how many lines down it is, the line's number and the column."
+  (save-excursion
+    (goto-char pos)
+    (let* ((column (current-column)) (number (line-number-at-pos)) (bol (line-beginning-position))
+           (id (or (get-text-property pos 'office-id) (get-text-property bol 'office-id)))
+           (start (and id (vikix-office--position id)))
+           (into (and start (count-lines start bol)))
+           (down 0) text)
+      (while (and (not text) (< down 8) (not (eobp)))
+        (let ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+          (if (string-blank-p line)
+              (progn (forward-line 1) (setq down (1+ down)))
+            (setq text line))))
+      (list (and start id) into text down number column))))
+(defun vikix-office--line-found (text number)
+  "The start of the line reading TEXT nearest line NUMBER, the very text
+first, then with any number in it changed (a time); nil when there is none."
+  (let (best)
+    (dolist (re (list (concat "^" (regexp-quote text) "$")
+                      (concat "^" (replace-regexp-in-string "[0-9]+" "[0-9]+" (regexp-quote text) t t) "$")))
+      (unless best
+        (save-excursion
+          (goto-char (point-min))
+          (while (re-search-forward re nil t)
+            (let ((distance (abs (- (line-number-at-pos) number))))
+              (when (or (null best) (< distance (car best)))
+                (setq best (cons distance (line-beginning-position)))))))))
+    (cdr best)))
+(defun vikix-office--anchor-find (anchor)
+  "Where ANCHOR's line is in the buffer as it is now, at its column."
+  (pcase-let ((`(,id ,into ,text ,down ,number ,column) anchor))
+    (save-excursion
+      (goto-char
+       (or (and id (let ((start (vikix-office--position id)))
+                     (and start
+                          (progn (goto-char start) (forward-line into)
+                                 (and (equal (get-text-property (max start (point)) 'office-id) id) (point))))))
+           (and text (let ((found (vikix-office--line-found text number)))
+                       (and found (progn (goto-char found) (forward-line (- down)) (point)))))
+           (progn (goto-char (point-min)) (forward-line (1- number)) (point))))
+      (move-to-column column)
+      (point))))
+(defun vikix-office--views ()
+  "Each window of the buffer with where it is: the window, its start's
+anchor, its point's, its hscroll."
+  (mapcar (lambda (w) (list w (vikix-office--anchor (window-start w)) (vikix-office--anchor (window-point w)) (window-hscroll w)))
+          (get-buffer-window-list (current-buffer) nil t)))
+(defun vikix-office--view-back (fresh here views)
+  "After a redraw, put point and each window's view back where HERE's and
+VIEWS' anchors are found, the start forced; on a FRESH page, at the top
+with point where the caller put it."
+  (if fresh
+      (dolist (view views)
+        (when (window-live-p (car view))
+          (set-window-start (car view) (point-min) t)
+          (set-window-hscroll (car view) 0)
+          (set-window-point (car view) (point))))
+    (goto-char (vikix-office--anchor-find here))
+    (dolist (view views)
+      (when (window-live-p (car view))
+        (set-window-start (car view) (save-excursion (goto-char (vikix-office--anchor-find (nth 1 view)))
+                                                     (line-beginning-position)))
+        (set-window-hscroll (car view) (nth 3 view))
+        (set-window-point (car view) (vikix-office--anchor-find (nth 2 view)))))))
+
 (defun vikix-office--render ()
   (let* ((rows (vikix-office--rows))
          (owner (current-buffer))
-         (old (point)) (column (current-column))
-         (views (mapcar (lambda (w) (list w (window-start w) (window-hscroll w)))
-                        (get-buffer-window-list (current-buffer) nil t)))
+         ;; A first draw or another page starts at the top; any other keeps the view.
+         (fresh (or vikix-office--fresh (= (point-min) (point-max))))
+         (here (vikix-office--anchor (point))) (views (vikix-office--views))
          (geometry (vikix-office--geometry)) (width (car geometry)) (chars (cdr geometry))
          (label-width 9))
+    (setq vikix-office--fresh nil)
     (unless (vikix-office--board-row) (setq vikix-office--selected (alist-get 'id (car rows))))
     (setq vikix-office--width width)
     (vikix-office--attention-colours)
@@ -1052,14 +1137,8 @@ they run, and New worker… when it stands with nobody at it."
                         'face 'shadow)))
              (dolist (section (alist-get vikix-office--page vikix-office--page-sections))
                (vikix-office--section-box width chars owner section label-width)))))
-    (let ((position (vikix-office--position vikix-office--selected)))
-      (goto-char (or position (min old (point-max))))
-      (when position (move-to-column column)))
-    (dolist (view views)
-      (when (window-live-p (car view))
-        (set-window-start (car view) (min (nth 1 view) (point-max)) t)
-        (set-window-hscroll (car view) (nth 2 view))
-        (set-window-point (car view) (point))))
+    (when fresh (goto-char (or (vikix-office--position vikix-office--selected) (point-min))))
+    (vikix-office--view-back fresh here views)
     (vikix-office--render-detail)))
 
 (defun vikix-office--signed (width chars label-width label entry &optional text)
@@ -1178,14 +1257,14 @@ named): its title, the acts the queue takes on it, and its record."
 (defun vikix-office--render-detail ()
   (when (buffer-live-p vikix-office--detail)
     (let ((r (vikix-office--row)) (task (vikix-office--task)) (owner (current-buffer))
-          (history vikix-office--history))
+          (history vikix-office--history) (selected vikix-office--selected))
       (with-current-buffer vikix-office--detail
         (setq-local vikix-office--history history)
-        (let* ((inhibit-read-only t) (old (point))
-               (views (mapcar (lambda (w) (cons w (window-start w)))
-                              (get-buffer-window-list (current-buffer) nil t)))
+        (let* ((inhibit-read-only t)
+               (fresh (or (= (point-min) (point-max)) (not (equal vikix-office--shows selected))))
+               (here (vikix-office--anchor (point))) (views (vikix-office--views))
                (geometry (vikix-office--geometry)) (width (car geometry)) (chars (cdr geometry)))
-          (setq vikix-office--width width)
+          (setq vikix-office--width width vikix-office--shows selected)
           (erase-buffer)
           (cond
            ((and (not r) task) (vikix-office--task-page width chars owner task))
@@ -1477,8 +1556,8 @@ named): its title, the acts the queue takes on it, and its record."
                                                 'shadow))
                          sessions labels))
               (vikix-office--box-bottom width chars))))
-          (goto-char (min old (point-max)))
-          (dolist (v views) (when (window-live-p (car v)) (set-window-start (car v) (min (cdr v) (point-max)) t))))))))
+          (when fresh (goto-char (point-min)))
+          (vikix-office--view-back fresh here views))))))
 
 (defun vikix-office--track ()
   (when-let* ((id (get-text-property (point) 'office-id)))
@@ -1581,7 +1660,8 @@ newest first, created, last activity, priority, status, project, provider."
   "Show PAGE (`desks', the board; `parked', the desks and closed; `archive'), its first row selected."
   (with-current-buffer (vikix-office--owner-buffer)
     (setq vikix-office--page page
-          vikix-office--selected nil)
+          vikix-office--selected nil
+          vikix-office--fresh t)
     (vikix-office--render)))
 (defun vikix-office--page-shown ()
   "The page the Office shows, asked of the Office's buffer (the desk pane has the same keys)."

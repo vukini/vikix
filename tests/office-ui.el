@@ -45,6 +45,90 @@ load of other sessions' tests that moment was missed (2026-10-08)."
      (setq vikix-office--data (office-test-data '("a")))
      (vikix-office--render)
      (should (equal vikix-office--selected "a")))))
+(defun office-test-line-at (pos)
+  "The text of POS's line."
+  (save-excursion (goto-char pos) (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+(ert-deftest office-refresh-keeps-the-lines-in-view ()
+  "A refresh draws the buffer again: the line at the top of the window and
+the line point is on are the same lines after, found by their row or their
+text, whatever came or went above them, and point's column holds; a page
+switch starts at the top, point on the first row."
+  (office-test-buffer
+   (save-window-excursion
+     (switch-to-buffer buffer)
+     (setq vikix-office--data (office-test-data '("a" "b" "c" "d")))
+     (vikix-office--render)
+     (let ((window (selected-window)))
+       ;; The window starts at b's row, point two lines into c's row.
+       (set-window-start window (vikix-office--position "b"))
+       (goto-char (vikix-office--position "c")) (forward-line 1) (move-to-column 6)
+       (let ((top (office-test-line-at (window-start window))) (line (office-test-line-at (point)))
+             (was (point)))
+         (should (equal (get-text-property (point) 'office-id) "c"))
+         ;; A row comes above: everything below it moves down, the view not.
+         (setq vikix-office--data (office-test-data '("x" "a" "b" "c" "d")))
+         (vikix-office--render)
+         (should (> (point) was))
+         (should (equal (office-test-line-at (window-start window)) top))
+         (should (equal (get-text-property (window-start window) 'office-id) "b"))
+         (should (equal (office-test-line-at (point)) line))
+         (should (equal (get-text-property (point) 'office-id) "c"))
+         (should (= (current-column) 6))
+         ;; The selection is still a's (point moved without a command): the
+         ;; view stays with point all the same, never pulled to the row selected.
+         (should (equal vikix-office--selected "a"))
+         ;; The row point was on is gone: point keeps its place on the screen.
+         (setq vikix-office--data (office-test-data '("x" "a" "b" "d")))
+         (vikix-office--render)
+         (should (equal (office-test-line-at (window-start window)) top))
+         (should (equal (get-text-property (point) 'office-id) "d")))
+       ;; Point on no row, a line after the rows: found by its text, a number in it changed.
+       (goto-char (vikix-office--position "d"))
+       (goto-char (next-single-property-change (point) 'office-id nil (point-max)))
+       (while (string-blank-p (office-test-line-at (point))) (forward-line 1))
+       (should-not (get-text-property (point) 'office-id))
+       (let ((line (office-test-line-at (point))) (was (point)))
+         (set-window-start window (line-beginning-position))
+         (setq vikix-office--data (office-test-data '("y" "x" "a" "b" "d")))
+         (vikix-office--render)
+         (should (> (point) was))
+         (should (equal (office-test-line-at (point)) line))
+         (should (= (window-start window) (line-beginning-position))))
+       (let ((line "Desk 12 · 3 min ago") (number 7))
+         (with-temp-buffer
+           (insert "x\n\nDesk 12 · 2 min ago\n\nDesk 12 · 14 min ago\nDesk 12 · 3 min ago\n")
+           ;; The very text first, wherever it is; then the nearest with its numbers changed.
+           (should (= (vikix-office--line-found line number) (save-excursion (goto-char (point-min)) (forward-line 5) (point))))
+           (should (= (vikix-office--line-found "Desk 12 · 9 min ago" 2)
+                      (save-excursion (goto-char (point-min)) (forward-line 2) (point))))
+           (should-not (vikix-office--line-found "Nothing here" 1))))
+       ;; Another page starts at the top, point on its first row; back again the same.
+       (set-window-start window (vikix-office--position "b"))
+       (goto-char (vikix-office--position "d"))
+       (vikix-office-show-page 'parked)
+       (should (= (window-start window) (point-min)))
+       (vikix-office-show-page 'desks)
+       (should (= (window-start window) (point-min)))
+       (should (equal (get-text-property (point) 'office-id) "y"))
+       ;; The desk pane keeps its lines over a refresh of the same page, and
+       ;; starts at the top for another desk's.
+       (setq vikix-office--detail (generate-new-buffer " *Office detail test*"))
+       (unwind-protect
+           (progn
+             (vikix-office--render)
+             (with-current-buffer vikix-office--detail
+               (should (> (count-lines (point-min) (point-max)) 6))
+               (goto-char (point-min)) (forward-line 5)
+               (while (string-blank-p (office-test-line-at (point))) (forward-line 1)))
+             (let ((line (with-current-buffer vikix-office--detail (office-test-line-at (point)))))
+               (setf (alist-get 'title (car (alist-get 'desks vikix-office--data))) "A title now two lines long, written longer than the window is wide so it wraps")
+               (vikix-office--render)
+               (with-current-buffer vikix-office--detail
+                 (should (equal (office-test-line-at (point)) line))
+                 (should (> (point) (point-min)))))
+             (vikix-office-next 1)
+             (with-current-buffer vikix-office--detail (should (= (point) (point-min)))))
+         (kill-buffer vikix-office--detail))))))
 (ert-deftest office-details-claims-and-missing ()
   (office-test-buffer
    (setq vikix-office--detail (generate-new-buffer " *Office detail test*"))

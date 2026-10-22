@@ -996,8 +996,11 @@ Office does not offer a second agent at an occupied desk or recreate a
 removed worktree; the existing CLI remains available for those operations.
 
 Refresh runs in the background every ten seconds, with one refresh at a
-time and a timeout. It preserves selection and pane position, never focuses
-a window, and stops when the view closes. On failure the header says why,
+time and a timeout. It keeps the selection and what you were reading where
+it was: the line at the top of each window and the line point is on are
+found again after the redraw (a row by its id, any other line by its text),
+so a row that came or a time written longer above moves nothing in view.
+It never focuses a window, and stops when the view closes. On failure the header says why,
 previous information stays visible and live activity becomes unknown;
 actions wait for a successful refresh. `vikix agents office --json` exposes
 the same snapshot to scripts, including discovery errors, the release
