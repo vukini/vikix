@@ -234,7 +234,7 @@ resumed: claude session 0f1e2d3c-… at ~/src/vikix-wifi-fix, its conversation c
 on workspace 4
 ```
 
-`vikix agents resume` shows the handoff, the git state and the checks' freshness, then starts an agent at the desk. When the record names a session and the provider's store still has it, that very conversation is resumed: `claude --resume ID`, `codex resume ID`, `opencode --session ID`, `agy --conversation ID`, each as its installed help says. Otherwise a fresh conversation starts, with the handoff on the terminal above it, and the line says why: no session noted, the provider's store lost it, or the provider can't resume one (Aider has no session ids; Gemini CLI's `--resume` is from its documentation, unverified here). When the provider's own store has a conversation for that folder which the record doesn't name, it is suggested, with the command that notes it, and never taken: nothing resumes the most recent conversation lying about, and nothing starts a second agent at a desk that has one (`--another` does, on purpose). `--fresh` asks for a new conversation, `--use codex` another provider, `--here` this terminal.
+`vikix agents resume` shows the handoff, the git state and the checks' freshness, then starts an agent at the desk. When the record names a session and the provider's store still has it, that very conversation is resumed: `claude --resume ID`, `codex resume ID`, `opencode --session ID`, `agy --conversation ID`, each as its installed help says. Otherwise a fresh conversation starts, with the handoff on the terminal above it, and the line says why: no session noted, the provider's store lost it, or the provider can't resume one (Aider has no session ids; Gemini CLI's `--resume` is from its documentation, unverified here). When the provider's own store has a conversation for that folder which the record doesn't name, it is suggested, with the command that notes it, and never taken: nothing resumes the most recent conversation lying about, and nothing starts a second agent at a desk that has one (`--another` does, on purpose). `--fresh` asks for a new conversation, `--use codex` another provider, `--here` this terminal. At a desk whose task was accepted (ready for release) or is done, `--fresh` is refused: the new agent would be handed that task as its first prompt and do it over (2026-10-22: a monthly review ran twice that way); `--again` does it on purpose, and `vikix agents worker` gives the desk its next task. A saved conversation at such a desk is resumed as it is, told where the task stands, nothing sent again.
 
 ### A worker: an agent at a desk, on a task
 
@@ -992,7 +992,9 @@ branch with them); no to that closes nothing. A desk with an agent at it
 is not offered: Close agent first, or let it finish.
 
 **Continue** offers a named provider and either its recorded saved
-conversation or an explicit **Start fresh** choice. It uses `vikix agents
+conversation or an explicit **Start fresh** choice. At a desk whose task
+was accepted or is done, Start fresh says so in the choice and asks before
+starting, since the task would be done over. It uses `vikix agents
 resume`, including its duplicate-session checks. A saved conversation that
 disappears after the choice fails instead of silently starting fresh. The
 Office does not offer a second agent at an occupied desk or recreate a

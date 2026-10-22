@@ -28,7 +28,9 @@
 #   record names when the provider's store still has it (claude --resume,
 #   codex resume, opencode --session, agy --conversation), else starts fresh and says why; a
 #   conversation the store has for the folder is suggested, never taken;
-#   never a second agent at a desk unasked. vikix agents hooks says what
+#   never a second agent at a desk unasked; --fresh at a desk whose task
+#   was accepted is refused (the task would be done over), --again does
+#   it on purpose, a saved conversation goes on told where the task stands. vikix agents hooks says what
 #   holds the rules for each provider and links the Codex and OpenCode
 #   adapters; touch --for gemini answers in Gemini's shape, --for opencode
 #   refuses a clash once and lets the same edit through. A desk gives the
@@ -285,6 +287,19 @@ out=$(resume c --here --fresh)
 check "--fresh starts a new conversation all the same, the task and the record its first prompt (a handover's road): $out" \
   bash -c 'grep -q "a fresh conversation was asked for" <<<"$1" && grep -q "^the task and the handoff are its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Chapter three$" <<<"$1" && grep -q "^This is your desk.s task" <<<"$1" && ! grep -q "What the desk.s record holds" <<<"$1"' _ "$out"
 check "the record logs what happened" grep -q '"what": "resumed: claude 0f1e2d3c' "$records"/*.json
+# A desk whose task was accepted: --fresh would hand the task to a new agent again, which did a monthly review twice (2026-10-22).
+agents handoff c --status finished >/dev/null
+out=$(resume c --here --fresh)
+check "at a desk whose task is accepted, --fresh is refused, and the way said: $out" \
+  bash -c 'grep -q "this desk.s task is ready for release (user, just now): a fresh conversation would be handed it again" <<<"$1" && grep -q "vikix agents worker book-c" <<<"$1" && ! grep -q "^AGENT ARGS" <<<"$1"' _ "$out"
+out=$(resume c --here --fresh --again)
+check "--again hands it again on purpose, and the record says so: $out" \
+  bash -c 'grep -q "its task is ready for release .*: handed again on purpose (--again)" <<<"$1" && grep -q "^AGENT ARGS: --use claude Chapter three$" <<<"$1"' _ "$out"
+check "the record logs the task handed again" grep -q 'the task ready for release handed again on purpose' "$records"/*.json
+out=$(resume c --here)
+check "a saved conversation at such a desk goes on, told where the task stands, nothing sent: $out" \
+  bash -c 'grep -q "its task is ready for release .*: the conversation goes on, nothing is sent again" <<<"$1" && grep -q "^AGENT ARGS: --use claude --resume 0f1e2d3c" <<<"$1"' _ "$out"
+agents handoff c --status working >/dev/null
 # Codex: a rollout file in its store, found by the id; one on disk for the folder is suggested, never taken.
 mkdir -p "$HOME/.codex/sessions/2026/10/06"
 printf '{"type":"session_meta","payload":{"id":"01a111e5-f7bf-7871-823c-70aee4f44f19","cwd":"%s"}}\n' "$t/src/book-c" \

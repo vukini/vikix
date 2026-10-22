@@ -1877,21 +1877,32 @@ away only on a second, separate yes."
       (when (eq (alist-get 'exists r) :false) (user-error "Worktree removed; the record is retained"))
       (when (eq (alist-get 'live_known vikix-office--data) :false) (user-error "Live activity unknown; refresh first"))
       (when (alist-get 'agents r) (user-error "An agent is already here; use Go to agent"))
-      (dolist (entry plans)
-        (let* ((provider (symbol-name (car entry))) (plan (cdr entry))
-               (base (list "resume" (alist-get 'worktree (alist-get 'desk r)) "--use" provider)))
-          (when (equal (alist-get 'mode plan) "resumed")
-            (push (cons (format "Resume %s · saved %s" provider (alist-get 'id (alist-get 'session plan)))
-                        (append base (list "--require-saved" "--expect-session" (alist-get 'id (alist-get 'session plan))))) choices))
-          (push (cons (format "Start fresh with %s · %s" provider (alist-get 'why plan))
-                      (append base '("--fresh"))) choices)))
-      ;; Other providers are explicitly fresh; never choose an unrecorded session.
-      (dolist (provider '("claude" "codex" "opencode" "gemini" "antigravity" "aider"))
-        (unless (assq (intern provider) plans)
-          (push (cons (concat "Start fresh with " provider)
-                      (list "resume" (alist-get 'worktree (alist-get 'desk r)) "--use" provider "--fresh")) choices)))
-      (let ((pick (completing-read "Continue (choose conversation or fresh start): " (reverse choices) nil t)))
-        (vikix-office--act (cdr (assoc pick choices)))))))
+      ;; A task accepted (ready for release) or done: a fresh conversation would be
+      ;; handed it again and do it over (2026-10-22: a monthly review ran twice that
+      ;; way). The choice says so, asks, and passes --again; a saved conversation goes on.
+      (let* ((state (alist-get 'value (alist-get 'status (alist-get 'task_record r))))
+             (over (and (member state '("ready for release" "completed" "cancelled")) state))
+             (fresh (append '("--fresh") (and over '("--again"))))
+             (fresh-words (if over (format " · the task is %s: it would be done over" over) "")))
+        (dolist (entry plans)
+          (let* ((provider (symbol-name (car entry))) (plan (cdr entry))
+                 (base (list "resume" (alist-get 'worktree (alist-get 'desk r)) "--use" provider)))
+            (when (equal (alist-get 'mode plan) "resumed")
+              (push (cons (format "Resume %s · saved %s" provider (alist-get 'id (alist-get 'session plan)))
+                          (append base (list "--require-saved" "--expect-session" (alist-get 'id (alist-get 'session plan))))) choices))
+            (push (cons (format "Start fresh with %s · %s%s" provider (alist-get 'why plan) fresh-words)
+                        (append base fresh)) choices)))
+        ;; Other providers are explicitly fresh; never choose an unrecorded session.
+        (dolist (provider '("claude" "codex" "opencode" "gemini" "antigravity" "aider"))
+          (unless (assq (intern provider) plans)
+            (push (cons (concat "Start fresh with " provider fresh-words)
+                        (append (list "resume" (alist-get 'worktree (alist-get 'desk r)) "--use" provider) fresh)) choices)))
+        (let* ((pick (completing-read "Continue (choose conversation or fresh start): " (reverse choices) nil t))
+               (args (cdr (assoc pick choices))))
+          (when (and over (member "--again" args)
+                     (not (yes-or-no-p (format "This desk's task is %s: a fresh agent would be given it again and do it over. Start it anyway? " over))))
+            (user-error "Not started"))
+          (vikix-office--act args))))))
 
 
 ;; New desk and Worker: a form each. A desk is the place (vikix agents desk:

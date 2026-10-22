@@ -124,7 +124,7 @@
                        w: the desk picked in rofi, then the task typed
                        (nothing for a session), then which agent and
                        whether it may push, as desk asks them
-  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another] [--mode MODE] [--prompt "..."]
+  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--again] [--another] [--mode MODE] [--prompt "..."]
                        take a desk up again, its conversation resumed.
                        Its handoff, git state and checks shown, then an
                        agent started there, its conversation resumed where
@@ -142,8 +142,11 @@
                        --mode as worker's (unsaid: the last launch's for
                        the same provider, else the house default). --fresh
                        at a desk with a task gives the agent the task, the
-                       handoff and the hand-in's fields as its first prompt;
-                       --prompt "..." gives a resumed conversation its next
+                       handoff and the hand-in's fields as its first prompt,
+                       and is refused at a desk whose task was accepted or
+                       is done, since the task would be done over (--again
+                       does it on purpose; worker gives the desk its next
+                       task); --prompt "..." gives a resumed conversation its next
                        words (what tell --now and a review use to wake a
                        worker at its prompt)
   vikix agents handover DESK --to NAME [--task "..."] [--mode MODE] [--now] [--here]

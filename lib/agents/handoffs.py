@@ -1059,7 +1059,7 @@ def handoff_forget(words):
 def resume(argv):
     H = handoff_module()
     use, here, fresh, another, words, mode = None, False, False, False, [], None
-    require_saved, expect_session, menu, prompt = False, None, False, ""
+    require_saved, expect_session, menu, prompt, again = False, None, False, "", False
     while argv:
         a = argv.pop(0)
         if a == "--menu":
@@ -1078,6 +1078,8 @@ def resume(argv):
             require_saved = True
         elif a == "--fresh":
             fresh = True
+        elif a == "--again":
+            again = True
         elif a == "--another":
             another = True
         elif a.startswith("-"):
@@ -1121,6 +1123,19 @@ def resume(argv):
         die("saved conversation changed or unavailable; refresh and choose again")
     if require_saved and plan["mode"] != "resumed":
         die("saved conversation unavailable: " + plan["why"] + "; choose --fresh explicitly")
+    # The desk's task accepted (ready for release) or done: a fresh conversation would be
+    # handed it again as its first prompt and do it over (2026-10-22: a monthly review ran
+    # twice, the second from the Office's Start fresh on an accepted desk). Refused unless
+    # --again; a resumed conversation goes on, nothing sent again, told where the task stands.
+    T = tasks_module()
+    tid = ((rec or {}).get("task") or {}).get("id") or ""
+    standing = ((T.load(tid) if tid else None) or {}).get("status") or {}
+    over = standing.get("value") if standing.get("value") in ("ready for release",) + tuple(T.FINAL) else ""
+    over_words = f"{over} ({standing.get('by') or 'unknown'}, {T.when(standing.get('at'))})" if over else ""
+    if over and fresh and not again:
+        die(f"this desk's task is {over_words}: a fresh conversation would be handed it again as its first "
+            f"prompt and do it over. vikix agents worker {os.path.basename(folder)} \"...\" gives the desk its "
+            "next task; --fresh --again hands the same task to a new agent on purpose")
     if plan["mode"] == "resumed":
         sid = plan["session"]["id"]
         said = (f"resumed: {provider} session {sid} at {short(folder)}" + (f", {mode}" if mode else "")
@@ -1136,13 +1151,18 @@ def resume(argv):
                      + ", ".join(f"{sid} ({H.when(t)})" for sid, t in disk)
                      + f". If it is this desk's, note it (vikix agents handoff session {provider} ID) and resume again; "
                      "nothing is resumed unasked")
+    if over:
+        said += "\n" + f"its task is {over_words}: " + ("handed again on purpose (--again)" if fresh
+                                                        else "the conversation goes on, nothing is sent again" if plan["mode"] == "resumed"
+                                                        else "nothing is sent; the record is what it has")
     print()
     print(said)
     by = by_me()[0]
     if rec:
         def noted(r_):
             H._log(r_, by, f"{plan['mode']}: {provider}" + (f" {mode}" if mode else "")
-                   + (f" {plan['session']['id']}" if plan["session"] and plan["mode"] == "resumed" else ""))
+                   + (f" {plan['session']['id']}" if plan["session"] and plan["mode"] == "resumed" else "")
+                   + (f", the task {over} handed again on purpose" if over and fresh else ""))
             H.set_launch(r_, provider, mode, by)
         try:
             H.update(common_of(folder), folder, noted)
