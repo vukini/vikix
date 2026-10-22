@@ -160,6 +160,18 @@ def codex_trust_line():
             "in a repository that is no project of yours Codex's own /hooks prompt stays")
 
 
+def claude_trust_line():
+    """Whether Claude Code's folder question is answered for a desk at the
+    start: the launcher writes the desk's trust into ~/.claude.json when the
+    project's own folder is trusted there, unless VIKIX_CLAUDE_TRUST=ask."""
+    if os.environ.get("VIKIX_CLAUDE_TRUST") == "ask":
+        return "trust: Claude Code's own folder question at every desk (VIKIX_CLAUDE_TRUST=ask)"
+    return ("trust: at a desk of a project whose own folder you trusted, vikix agent writes the desk's answer into "
+            "~/.claude.json first (projects[DESK].hasTrustDialogAccepted), so Claude Code's folder question isn't "
+            "asked at each new desk; a repository you never trusted, and your home (its answer is for the session "
+            "only, Claude Code's rule), still ask")
+
+
 CODEX_TOP_KEYS = ("sandbox_mode", "approval_policy", "approvals_reviewer", "model", "model_reasoning_effort", "notify")
 
 
@@ -202,6 +214,8 @@ def hooks(argv):
         if dest:
             states.append(link_state(name, src, dest, install, bool(words)))
             states += [link_state(name, s_, d_, install, bool(words)) for s_, d_ in EXTRA_LINKS.get(name, ())]
+        if name == "claude":
+            states.append(claude_trust_line())
         if name == "codex":
             states.append(codex_trust_line())
             states += codex_config_lines()

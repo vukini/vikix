@@ -87,6 +87,20 @@
 # vikix), put in place at each start. VIKIX_OFFICE=0 leaves it out, and
 # for agy leaves the plugin as it is.
 #
+# Claude Code asks "do you trust the files in this folder?" once a folder,
+# and keeps the answer in ~/.claude.json (projects[FOLDER].
+# hasTrustDialogAccepted). Inside a repository it looks no further up than
+# the repository's root, and a desk, a git worktree, is a root of its own:
+# so every new desk asked again, however long ~/src/vikix had been trusted.
+# At a desk whose project's own folder you trusted, the start writes the
+# same answer for the desk into that file first (the key Claude Code's own
+# message names; nothing else of the file is touched; Vid's decision,
+# 2026-10-22), so the question isn't asked. A desk of a repository you
+# never trusted still asks. VIKIX_CLAUDE_TRUST=ask keeps the question
+# everywhere. Your home can't be trusted this way: Claude Code keeps the
+# home's answer for the session only ("home trust is session-only"), so
+# Super+a's agent here asks at each start, and the start says so.
+#
 # Codex gets three more things on its command line, for the session only
 # (~/.codex/config.toml is yours and is never written). The repository's
 # instructions: Codex reads AGENTS.md from the repository's root down to
@@ -558,6 +572,71 @@ opencode_asks() {
   return 0
 }
 
+# --- Claude Code at a desk: trusted as the project's own folder is (see the top) ----
+claude_trust_desk() {
+  [ "${VIKIX_CLAUDE_TRUST:-}" = ask ] && return 0
+  local conf="$HOME/.claude.json"
+  if [ "$(readlink -f "$PWD")" = "$(readlink -f "$HOME")" ]; then
+    say "Claude Code asks to trust your home at every start: it keeps that answer for the session only (nothing Vikix can set)"
+    return 0
+  fi
+  [ -f "$conf" ] || return 0
+  local top own
+  top=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || return 0
+  own=$(git -C "$PWD" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
+  [ -n "$own" ] || return 0
+  top=$(readlink -f "$top"); own=$(readlink -f "$own")
+  [ "$top" = "$own" ] && return 0   # the project's own folder: Claude Code's own answer holds
+  local answer
+  answer=$(python3 - "$conf" "$top" "$own" "$DRY_RUN" <<'PY'
+import json, os, sys, tempfile
+conf, desk, own, dry = sys.argv[1:5]
+try:
+    with open(conf) as f:
+        data = json.load(f)
+except (OSError, ValueError):
+    sys.exit(0)   # not a file Vikix would rewrite
+projects = data.get("projects")
+if not isinstance(projects, dict):
+    sys.exit(0)
+if not (isinstance(projects.get(own), dict) and projects[own].get("hasTrustDialogAccepted") is True):
+    sys.exit(0)
+if isinstance(projects.get(desk), dict) and projects[desk].get("hasTrustDialogAccepted") is True:
+    sys.exit(0)
+if dry == "1":
+    print(f"   would trust {desk} for Claude Code as {own} is ({conf})")
+    sys.exit(0)
+# A new entry in the shape Claude Code gives one; an entry that is there keeps the rest of itself.
+entry = dict(projects.get(desk) or {"allowedTools": [], "mcpContextUris": [], "mcpServers": {},
+                                     "enabledMcpjsonServers": [], "disabledMcpjsonServers": [],
+                                     "hasClaudeMdExternalIncludesApproved": False,
+                                     "hasClaudeMdExternalIncludesWarningShown": False})
+entry["hasTrustDialogAccepted"] = True
+projects[desk] = entry
+fd, tmp = tempfile.mkstemp(prefix=".claude.json.", dir=os.path.dirname(conf) or ".")
+try:
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, conf)
+except OSError as e:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    print(f"   couldn't write {conf}: {e}; Claude Code will ask")
+    sys.exit(0)
+print(f"trusted for Claude Code as {own} is")
+PY
+) || true
+  case $answer in
+    '') ;;
+    trusted*) say "this desk is $answer" ;;
+    *) printf '%s\n' "$answer" ;;
+  esac
+}
+
 # --- Codex at a desk: the project's instructions, a mode, the hook's trust ------
 # Codex's levers, as 0.160.1 has them (its --help, and codex debug
 # prompt-input and codex sandbox tried here on 2026-10-10): every setting
@@ -685,6 +764,9 @@ start() {
   if [ "$name" = claude ] && [ "$ACP" = 0 ] && [ "${VIKIX_OFFICE:-1}" != 0 ]; then
     args+=(--settings "$VIKIX_DIR/config/claude/office.json")
   fi
+  # Claude Code in a terminal at a desk: trusted as the project's own folder
+  # is, so its question isn't asked at every new desk (see the top).
+  [ "$name" = claude ] && [ "$ACP" = 0 ] && claude_trust_desk
   # Codex in a terminal: the project's instructions, its mode, the hook's
   # trust (see the top). The ACP adapter takes none of it; a report
   # (vikix diagnose) keeps its read-only sandbox, so no mode there.

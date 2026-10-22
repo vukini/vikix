@@ -311,7 +311,12 @@ def roff(page, pages, version, date):
            # lines; mandoc (Void's) does neither. Ragged right and no
            # hyphenation, then: AD is what groff 1.23's man macros set the
            # adjustment back to at each section, .ad l is for older groffs.
-           ".ds AD l", ".ad l", ".nh",
+           # groff 1.24's man macros turn hyphenation on again at every
+           # paragraph and section from the register HY (an.tmac; Void moved
+           # to 1.24.2 on 2026-10-22 and backup-password broke in two
+           # again), so the page sets that to 0 as well; .nh is for older
+           # groffs and mandoc, which read neither.
+           ".ds AD l", ".ad l", ".nh", ".nr HY 0",
            ".SH NAME",
            f"{esc(page.name)} \\- {esc(page.summary)}",
            ".SH SYNOPSIS"]

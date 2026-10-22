@@ -230,6 +230,45 @@ check "a failed snapshot kept the agent from starting" test -e "$t/started"
 ANTHROPIC_API_KEY=sk-ant-x VIKIX_AGENT_API_KEY=1 agent >/dev/null 2>&1 || true
 check "VIKIX_AGENT_API_KEY=1 should keep the keys: $(cat "$t/started")" grep -q 'ANTHROPIC_API_KEY=sk-ant-x' "$t/started"
 
+# Claude Code's folder question at a desk: answered first, as the project's own folder was
+# (projects[DESK].hasTrustDialogAccepted in ~/.claude.json), never for a repository you didn't
+# trust, nor with VIKIX_CLAUDE_TRUST=ask, nor in a dry run; the file keeps its mode and the rest.
+tgit() { git -c user.name=test -c user.email=test@example.com "$@"; }   # the test's home has no identity
+mkdir -p "$HOME/src"; tgit -C "$HOME/src" init -q trusted; tgit -C "$HOME/src/trusted" commit -q --allow-empty -m one
+tgit -C "$HOME/src/trusted" worktree add -q "$HOME/src/trusted-desk" -b desk 2>/dev/null
+tgit -C "$HOME/src" init -q stranger; tgit -C "$HOME/src/stranger" commit -q --allow-empty -m one
+tgit -C "$HOME/src/stranger" worktree add -q "$HOME/src/stranger-desk" -b desk 2>/dev/null
+trusted_json() {   # the file as Claude Code keeps it: the own folder trusted, a key of its own kept
+  printf '{"numStartups": 7, "projects": {"%s": {"allowedTools": [], "hasTrustDialogAccepted": true}}}\n' "$HOME/src/trusted" > "$HOME/.claude.json"
+  chmod 600 "$HOME/.claude.json"
+}
+trust_of() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("projects",{}).get(sys.argv[2],{}).get("hasTrustDialogAccepted", "none"))' "$HOME/.claude.json" "$1"; }
+trusted_json
+out=$(cd "$HOME/src/trusted-desk" && agent --print hello 2>&1) || true
+check "a desk of a trusted project should be trusted at the start: $(trust_of "$HOME/src/trusted-desk")" test "$(trust_of "$HOME/src/trusted-desk")" = True
+check "and the start should say so: $out" grep -q "this desk is trusted for Claude Code as $HOME/src/trusted is" <<<"$out"
+check "the rest of ~/.claude.json should be kept" test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["numStartups"])' "$HOME/.claude.json")" = 7
+check "the file should keep its mode: $(stat -c %a "$HOME/.claude.json")" test "$(stat -c %a "$HOME/.claude.json")" = 600
+check "claude should still have started" grep -q '^ran .*/claude .*--print hello' "$t/started"
+out=$(cd "$HOME/src/trusted-desk" && agent --print hello 2>&1) || true
+check "a desk already trusted isn't said again: $out" test -z "$(grep 'this desk is trusted' <<<"$out" || true)"
+out=$(cd "$HOME/src/stranger-desk" && agent --print hello 2>&1) || true
+check "a desk of a repository you never trusted isn't: $(trust_of "$HOME/src/stranger-desk")" test "$(trust_of "$HOME/src/stranger-desk")" = none
+out=$(cd "$HOME/src/trusted" && agent --print hello 2>&1) || true
+check "the project's own folder is left as it is (Claude Code's own answer): $out" test -z "$(grep 'this desk is trusted' <<<"$out" || true)"
+trusted_json
+out=$(cd "$HOME/src/trusted-desk" && VIKIX_CLAUDE_TRUST=ask agent --print hello 2>&1) || true
+check "VIKIX_CLAUDE_TRUST=ask keeps the question: $(trust_of "$HOME/src/trusted-desk")" test "$(trust_of "$HOME/src/trusted-desk")" = none
+out=$(cd "$HOME/src/trusted-desk" && DRY_RUN=1 agent --print hello 2>&1) || true
+check "a dry run says what it would trust: $out" grep -q "would trust $HOME/src/trusted-desk for Claude Code" <<<"$out"
+check "and writes nothing: $(trust_of "$HOME/src/trusted-desk")" test "$(trust_of "$HOME/src/trusted-desk")" = none
+printf 'not json' > "$HOME/.claude.json"
+out=$(cd "$HOME/src/trusted-desk" && agent --print hello 2>&1) || true
+check "a file that isn't JSON is left alone, and claude starts" test "$(cat "$HOME/.claude.json")" = 'not json' -a -n "$(grep '^ran' "$t/started")"
+out=$(cd "$HOME" && agent --print hello 2>&1) || true
+check "at home the start says Claude Code will ask (its answer is for the session only): $out" grep -q 'asks to trust your home at every start' <<<"$out"
+rm -f "$HOME/.claude.json"
+
 # Aider keeps the model companies' keys, and reads the guide.
 ANTHROPIC_API_KEY=sk-ant-x GITHUB_TOKEN=gh-x agent --use aider >/dev/null 2>&1 || true
 check "aider should be given the guide: $(head -1 "$t/started")" grep -q -- "--read $guide" "$t/started"
