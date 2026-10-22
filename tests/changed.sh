@@ -113,7 +113,11 @@ vikix_hunks() {   # the parts of bin/vikix the diff touches: one a line, a part 
         line = $0
         while (match(line, /bin\/vikix-[a-z][a-z-]*/)) {
           s = substr(line, RSTART + 4, RLENGTH - 4); line = substr(line, RSTART + RLENGTH)
-          if (s != "vikix-eval" && index(" " scripts[arm] " ", " " s " ") == 0) scripts[arm] = scripts[arm] " " s
+          # Never an unset scripts[arm] inside index(): gawk 5.4.1 (Void,
+          # 2026-10-22) makes the element it creates there the number 0, and
+          # the arm came out as "wifi0 vikix-wifi", which no test is: all.
+          have = (arm in scripts) ? scripts[arm] : ""
+          if (s != "vikix-eval" && index(" " have " ", " " s " ") == 0) scripts[arm] = have " " s
         }
         next
       }
