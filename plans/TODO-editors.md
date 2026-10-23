@@ -47,6 +47,8 @@ Shipped in 0.57.0, in `config/nvim/lua/vikix/plugins/ai.lua`: AstroCommunity's C
 
 Shipped in 0.59.0 and 0.60.0, in `config/emacs/vikix-ai.el` (linked to `~/.local/share/vikix/emacs` by `45-editors`), which `emacs-void` loads when it is there (decision 3). gptel: the backends "Claude" (the session's key, or `~/.config/vikix/secrets`) and "Local" (Ollama's models as they are at each `C-c g`), the default following `vikix ai use` and `model=` (read again at each `C-c g` / `C-c G`; a pick of yours stays until the file changes), and `C-c g` saying what's missing before gptel asks for a key. Agents: agent-shell with Vikix's four ACP agents, each started by `vikix agent --acp`; `C-c a` a chat with your agent, `C-c A` your agent in a terminal (vterm, `vikix agent`, so Aider too); each says what's missing. Everything is guarded: without the file nothing changes, and the agents check for `vikix` on PATH. `tests/emacs.sh`, and `tests/editors.sh` loads the checkout's part. Tried for real: Claude and llama3.2:3b answered through gptel, Claude Code over ACP through agent-shell's client. claude-code-ide.el and aidermacs weren't needed.
 
+- [ ] **gptel-agent (karthink) and eca-emacs (editor-code-assistant)**, from Gemini's audit, 2026-10-23: both put an agent in Emacs. Against decision 4 (ACP first; agent-shell is in) they are a comparison to make once, not a third way in; gptel-agent would ride on the gptel setup that is there.
+
 ## 5. Afterwards, in Vikix
 
 - [ ] **A debugger for Python in Emacs:** dape with debugpy, the one piece `vikix-python.el` (Python as an IDE under `C-c p`, 2026-10-20) left for later; breakpoints and stepping in the same layout, `C-c p D`.

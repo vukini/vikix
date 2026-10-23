@@ -39,6 +39,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 
 | File | Written | What it holds |
 |---|---|---|
+| [gemini-audit-2026-10-23.md](gemini-audit-2026-10-23.md) | 2026-10-23 (imported) | Vid's roadmap worked out with Gemini, six phases from a roaming rig to copy-on-write tournaments, kept as he brought it; sorted into the lists the same day (`IDEAS.md`, "Gemini's audit": what is already built, what became a note, what stays an idea, what runs against a decision). Its paths and its Beads protocol are not Vikix's. |
 | [VIKIX_CLOUD_HANDOFF.md](VIKIX_CLOUD_HANDOFF.md) | 2026-10-15 (imported) | Vid’s Cloud development handoff, supplementing `DESIGN-cloud.md` and TODO 117: phased acceptance criteria, transfer safeguards, dogfooding and later product context; annotated for the node commands already shipped. |
 | `ai-desktop.md` | 2026-09-30 | The AI desktop at work (one Radeon AI PRO R9700), beside the ROG Flow Z13 (TODO 58 to 63). |
 | `TODO-editors.md` | 2026-09-29 | What is left for the editors: Neovim's config into Vikix, AI in Neovim and Emacs. |
