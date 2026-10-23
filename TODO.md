@@ -110,7 +110,6 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 23. **Keyboard layouts on a key.** English, Arabic and others, switched with a key, the current one in the bar; Esperanto keeps its Right Alt option.
 24. **Spell checking in Esperanto and Arabic,** in Emacs, LibreOffice and Firefox (hunspell dictionaries).
 25. **Read aloud.** An `s-i` action that speaks the selection with a local voice. Piper is in since `vikix voice setup` (pinned, with uv; not in Void); left is the action.
-26. **E-books to an e-reader.** Calibre comes with `vikix add publish`, and `vikix publish --send` puts a book you built on a Kindle, Kobo or BOOX. Left: any EPUB or PDF, not only a book of yours, converted first when the reader needs it.
 
 ### Work
 

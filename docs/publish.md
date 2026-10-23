@@ -1,6 +1,6 @@
 # Books from Markdown
 
-You have a text in Markdown and you want a book out of it: an EPUB that reads well on an e-ink reader, and a PDF for print or the screen. `vikix publish` makes both from one folder, checks them before it calls them done, and puts the EPUB on your reader when you plug it in. It comes with the feature `publish` (`vikix add publish`), and every book you make builds the same way, so "is this one finished?" has one answer.
+You have a text in Markdown and you want a book out of it: an EPUB that reads well on an e-ink reader, and a PDF for print or the screen. `vikix publish` makes both from one folder, checks them before it calls them done, and puts a copy on your reader when you plug it in. It comes with the feature `publish` (`vikix add publish`), and every book you make builds the same way, so "is this one finished?" has one answer.
 
 ## What a book is
 
@@ -125,11 +125,24 @@ A link that isn't found is listed with its chapter and why, and the check fails.
 vikix publish a-small-book --send
 ```
 
-`--send` builds the EPUB and puts it on the reader plugged in. It knows a Kindle mounted as a drive (the file goes into `documents/`), a Kobo (at the top of the drive), any drive with a `Books` folder, an Android reader such as a BOOX in file transfer mode (over MTP, into its storage's `Books`), and one with USB debugging on (adb, into `/sdcard/Books`). It tries them in that order and says where the book went:
+`--send` builds the EPUB and puts a copy on the reader plugged in. For a mounted Kindle, it converts the EPUB locally to AZW3 with Calibre before copying; the built EPUB stays in `out/`. It knows a Kindle mounted as a drive (the file goes into `documents/`), a Kobo (at the top of the drive), any drive with a `Books` folder, an Android reader such as a BOOX in file transfer mode (over MTP, into its storage's `Books`), and one with USB debugging on (adb, into `/sdcard/Books`). It tries them in that order and says where the book went:
 
 ```
 :: sent: adb:/sdcard/Books/a-small-book.epub
 ```
+
+You can also send an existing file, without a book project or a build:
+
+```sh
+vikix publish ~/Downloads/book.epub --send
+vikix publish ~/Downloads/paper.pdf --send
+vikix publish ~/Downloads/book.epub --to /path/to/reader/Books
+vikix publish ~/Downloads/paper.pdf --to /path/to/reader/Books --format epub
+```
+
+Inputs are EPUB or PDF (including uppercase extensions). Paths with spaces need quotes. The original is left untouched. With the default `--format auto`, a mounted Kindle receives an EPUB converted to AZW3; PDFs stay PDFs, and Kobo, generic Books folders, MTP and adb keep the original format. `--to` is an explicit folder and keeps the original format too: use `--format azw3` when that folder belongs to a Kindle. `--format epub`, `pdf` or `azw3` explicitly chooses the output, and also works with built books. Calibre (`ebook-convert`, included in `vikix add publish`) is needed only when conversion is required. [Calibre's conversion command](https://manual.calibre-ebook.com/generated/en/ebook-convert.html) takes the input and output filenames; their extensions select the formats.
+
+Converted files live in a private temporary folder, removed after success or failure. A failed conversion sends nothing and leaves the source alone. Conversion is bounded to three minutes. PDFs are kept unchanged by default because converting a fixed page layout to a reflowable book can lose formatting; scanned PDFs are not OCRed. File sends do not create a project log entry or a git commit. The command still takes one book at a time.
 
 With no reader found it stops and says so: plug one in, or on an Android reader choose file transfer. `--to FOLDER` names the place yourself instead, any folder, and nothing is looked for.
 

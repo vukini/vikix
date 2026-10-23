@@ -21,6 +21,13 @@
 #                     Android reader such as a BOOX in file transfer mode
 #                     (its Books folder, over MTP), or one with USB
 #                     debugging (adb, /sdcard/Books); --to names the folder
+#   vikix publish FILE --send [--to FOLDER] [--format auto|epub|pdf|azw3]
+#                     send an existing EPUB or PDF without building a book;
+#                     auto keeps its format except EPUB on a mounted Kindle,
+#                     converted locally to AZW3 with Calibre; --format chooses
+#                     the output explicitly, also for a book built above;
+#                     the original stays untouched, temporary conversion
+#                     files are removed after the transfer
 #   vikix publish [NAME|DIR] spell [--keep] [--no-commit]
 #                     the words the dictionary doesn't know, by chapter;
 #                     --keep adds them to the book's words.txt, to read,
@@ -223,25 +230,47 @@ find_book() {
 MEDIA=${VIKIX_MEDIA:-/run/media/$USER}
 GIO=${VIKIX_GIO:-gio}
 ADB=${VIKIX_ADB:-adb}
+CONVERTER=${VIKIX_EBOOK_CONVERT:-ebook-convert}
+
+# Called inside send_book's private temporary folder; stdout is a path,
+# so Calibre's progress belongs on stderr. Never convert beside the source.
+reader_file() {
+  local file=$1 target=$2 ext=${1##*.} output
+  ext=${ext,,}
+  [ "$SEND_FORMAT" = auto ] || target=$SEND_FORMAT
+  [ "$target" != auto ] || target=$ext
+  if [ "$target" = "$ext" ]; then printf '%s\n' "$file"; return 0; fi
+  command -v "$CONVERTER" >/dev/null 2>&1 || { warn "conversion needs Calibre: vikix add publish"; return 1; }
+  output="$SEND_TMP/$(basename -- "${file%.*}").$target"
+  timeout --kill-after=5s 180s "$CONVERTER" "$file" "$output" >&2 || {
+    warn "couldn't convert $file to $target; nothing sent"; return 1;
+  }
+  [ -s "$output" ] || { warn "conversion produced no book; nothing sent"; return 1; }
+  printf '%s\n' "$output"
+}
 
 send_to_drive() {
-  local epub=$1 d dest
+  local epub=$1 d dest target prepared
   for d in "$MEDIA"/*/ /media/"$USER"/*/; do
     [ -d "$d" ] || continue
-    dest=""
-    if [ -d "$d/documents" ] && [ -d "$d/system" ]; then dest="$d/documents"   # a Kindle
+    dest=""; target=auto
+    if [ -d "$d/documents" ] && [ -d "$d/system" ]; then
+      dest="$d/documents"
+      case ${epub,,} in *.epub) target=azw3 ;; esac   # a Kindle
     elif [ -d "$d/.kobo" ]; then dest="$d"                                    # a Kobo
     elif [ -d "$d/Books" ]; then dest="$d/Books"
     elif [ -d "$d/books" ]; then dest="$d/books"
     fi
     [ -n "$dest" ] || continue
-    cp -- "$epub" "$dest/" && sync && { echo "${dest%/}/$(basename "$epub")"; return 0; }
+    prepared=$(reader_file "$epub" "$target") || return 2
+    cp -- "$prepared" "$dest/" && sync || return 2
+    echo "${dest%/}/$(basename "$prepared")"; return 0
   done
   return 1
 }
 
 send_over_mtp() {
-  local epub=$1 root storage
+  local epub=$1 root storage prepared
   command -v "$GIO" >/dev/null 2>&1 || return 1
   root=$("$GIO" mount -li 2>/dev/null | sed -n 's/.*activation_root=\(mtp:\/\/[^ ]*\).*/\1/p' | head -1)
   [ -n "$root" ] || return 1
@@ -250,32 +279,47 @@ send_over_mtp() {
   storage=$("$GIO" list "$root" 2>/dev/null | head -1)
   [ -n "$storage" ] || return 1
   "$GIO" mkdir -p "${root%/}/$storage/Books" >/dev/null 2>&1 || true
-  "$GIO" copy -- "$epub" "${root%/}/$storage/Books/" || return 1
-  echo "${root%/}/$storage/Books/$(basename "$epub")"
+  prepared=$(reader_file "$epub" auto) || return 2
+  "$GIO" copy -- "$prepared" "${root%/}/$storage/Books/" || return 2
+  echo "${root%/}/$storage/Books/$(basename "$prepared")"
 }
 
 send_over_adb() {
-  local epub=$1 devices
+  local epub=$1 devices prepared
   command -v "$ADB" >/dev/null 2>&1 || return 1
   devices=$("$ADB" devices 2>/dev/null | awk 'NR > 1 && $2 == "device"' | wc -l)
   [ "$devices" = 1 ] || return 1
-  "$ADB" push "$epub" /sdcard/Books/ >/dev/null || return 1
-  echo "adb:/sdcard/Books/$(basename "$epub")"
+  prepared=$(reader_file "$epub" auto) || return 2
+  "$ADB" push "$prepared" /sdcard/Books/ >/dev/null || return 2
+  echo "adb:/sdcard/Books/$(basename "$prepared")"
 }
 
-send_book() {
-  local epub=$1 to=$2 where
-  [ -f "$epub" ] || die "no $epub to send"
+send_book() (
+  local epub=$1 to=$2 where prepared status backend
+  SEND_FORMAT=${3:-auto}
+  [ -f "$epub" ] && [ -r "$epub" ] || die "no readable file $epub to send"
+  epub=$(realpath -- "$epub") || exit 1
+  if [ "$DRY_RUN" = 1 ]; then say "would send: $epub (format $SEND_FORMAT) to ${to:-the connected reader}"; return 0; fi
+  SEND_TMP=$(mktemp -d) || die "couldn't make a conversion folder"
+  trap 'rm -rf -- "$SEND_TMP"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   if [ -n "$to" ]; then
     [ -d "$to" ] || die "no folder $to"
-    cp -- "$epub" "$to/" && sync || die "couldn't copy it into $to"
-    where="${to%/}/$(basename "$epub")"
+    prepared=$(reader_file "$epub" auto) || exit 1
+    cp -- "$prepared" "$to/" && sync || die "couldn't copy it into $to"
+    where="${to%/}/$(basename "$prepared")"
   else
-    where=$(send_to_drive "$epub") || where=$(send_over_mtp "$epub") || where=$(send_over_adb "$epub") ||
-      die "no reader found: plug it in (on an Android reader, choose file transfer), or --to FOLDER"
+    status=1
+    for backend in send_to_drive send_over_mtp send_over_adb; do
+      where=$("$backend" "$epub"); status=$?
+      [ "$status" = 1 ] || break
+    done
+    [ "$status" != 2 ] || die "reader found, but conversion or transfer failed"
+    [ "$status" = 0 ] || die "no reader found: plug it in (on an Android reader, choose file transfer), or --to FOLDER"
   fi
   say "sent: $where"
-}
+)
 
 # --- Keeping what it writes in git ---------------------------------------------------
 
@@ -372,7 +416,7 @@ note_build() {
 }
 
 cmd_build() {
-  local book="" formats=() keep=() send=0 to="" a log=${VIKIX_PUBLISH_LOG:-1}
+  local book="" formats=() keep=() send=0 to="" output_format=auto a log=${VIKIX_PUBLISH_LOG:-1}
   while [ $# -gt 0 ]; do
     a=$1; shift
     case $a in
@@ -381,11 +425,21 @@ cmd_build() {
       --no-commit) COMMIT=0 ;;
       --no-log) log=0 ;;
       --send) send=1 ;;
+      --format) output_format=${1:-}; [ $# -gt 0 ] || die "--format needs auto, epub, pdf or azw3"; shift
+        case $output_format in auto|epub|pdf|azw3) ;; *) die "--format needs auto, epub, pdf or azw3" ;; esac ;;
       --to) send=1; to=${1:-}; [ -n "$to" ] || die "--to which folder?"; shift ;;
       -*) die "vikix publish: $a? (vikix publish -h)" ;;
       *) [ -z "$book" ] || die "one book at a time"; book=$a ;;
     esac
   done
+  if [ -f "$book" ] || [[ "${book,,}" == *.epub || "${book,,}" == *.pdf ]]; then
+    [ "$send" = 1 ] || die "an existing file needs --send or --to FOLDER"
+    [ "${#formats[@]}" = 0 ] && [ "${#keep[@]}" = 0 ] || die "existing files cannot use build or spell actions"
+    case ${book,,} in *.epub|*.pdf) ;; *) die "send an EPUB or PDF file" ;; esac
+    send_book "$book" "$to" "$output_format"
+    return $?
+  fi
+  [ "$output_format" = auto ] || [ "$send" = 1 ] || die "--format needs --send or --to FOLDER"
   if [ "${#formats[@]}" -eq 0 ]; then
     if [ "$send" = 1 ]; then formats=(epub); else formats=(epub pdf); fi
   fi
@@ -422,7 +476,7 @@ cmd_build() {
     note_build "$dir" "${into[@]}"
   fi
   [ "$send" = 1 ] || return 0
-  send_book "$dir/out/$(python3 "$BUILD" name).epub" "$to"
+  send_book "$dir/out/$(python3 "$BUILD" name).epub" "$to" "$output_format"
 }
 
 cmd_new() {

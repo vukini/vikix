@@ -60,6 +60,96 @@ cp -r "$here/tests/publish" "$book"
 # A face every machine with Typst has, so the test doesn't need Plex.
 face=$(fc-list : family 2>/dev/null | grep -m1 -oE '^DejaVu Serif$|^Noto Serif$|^Liberation Serif$' || true)
 
+# Existing files need no book project or build tools. Each transfer uses
+# made-up media and backends; no reader or private document is touched.
+real_converter=$(command -v ebook-convert || true)
+original_path=$PATH
+cat > "$t/bin/ebook-convert" <<'X'
+#!/usr/bin/env python3
+import os, pathlib, sys
+with open(os.environ['CONVERT_CALLS'], 'a') as out:
+    out.write(repr(sys.argv[1:]) + '\n')
+if os.environ.get('CONVERT_FAIL'):
+    pathlib.Path(sys.argv[2]).write_bytes(b'partial')
+    sys.exit(1)
+pathlib.Path(sys.argv[2]).write_bytes(pathlib.Path(sys.argv[1]).read_bytes())
+X
+chmod +x "$t/bin/ebook-convert"
+export CONVERT_CALLS="$t/conversions"
+: > "$CONVERT_CALLS"
+media="$t/file-media"
+mkdir -p "$t/files" "$t/file-reader" "$media/KINDLE/documents" "$media/KINDLE/system" "$t/conversion-tmp"
+printf 'made-up EPUB contents' > "$t/files/a book [draft].EPUB"
+printf 'made-up PDF contents' > "$t/files/paper.pdf"
+printf '#!/bin/sh\nexit 0\n' > "$t/bin/gio"
+printf '#!/bin/sh\necho "List of devices attached"\n' > "$t/bin/adb"
+chmod +x "$t/bin/gio" "$t/bin/adb"
+sendfile() {
+  PATH="$t/bin:$original_path" TMPDIR="$t/conversion-tmp" VIKIX_MEDIA="$media" \
+    VIKIX_GIO="$t/bin/gio" VIKIX_ADB="$t/bin/adb" bash "$here/bin/vikix-publish" "$@" 2>&1
+}
+original=$(sha256sum "$t/files/"*)
+out=$(sendfile "$t/files/a book [draft].EPUB" --send) || true
+check "an existing EPUB becomes AZW3 on a mounted Kindle: $out" cmp "$t/files/a book [draft].EPUB" "$media/KINDLE/documents/a book [draft].azw3"
+check "conversion temporary files are removed" test -z "$(ls -A "$t/conversion-tmp")"
+out=$(sendfile "$t/files/paper.pdf" --send) || true
+check "Kindle keeps an existing PDF unchanged: $out" cmp "$t/files/paper.pdf" "$media/KINDLE/documents/paper.pdf"
+check "only EPUB required conversion" test "$(wc -l < "$CONVERT_CALLS")" = 1
+rm -rf "$media/KINDLE"
+mkdir -p "$media/KOBO/.kobo"
+out=$(sendfile "$t/files/a book [draft].EPUB" --send) || true
+check "Kobo keeps the original format: $out" cmp "$t/files/a book [draft].EPUB" "$media/KOBO/a book [draft].EPUB"
+check "Kobo did not convert" test "$(wc -l < "$CONVERT_CALLS")" = 1
+out=$(sendfile "$t/files/paper.pdf" --to "$t/file-reader" --format epub) || true
+check "explicit output format converts before copying: $out" cmp "$t/files/paper.pdf" "$t/file-reader/paper.epub"
+check "original files are unchanged" test "$original" = "$(sha256sum "$t/files/"*)"
+rm -f "$t/file-reader/paper.epub"
+out=$(CONVERT_FAIL=1 sendfile "$t/files/paper.pdf" --to "$t/file-reader" --format epub) && fail=1
+check "conversion failure never sends a partial book: $out" test ! -e "$t/file-reader/paper.epub"
+check "failed conversion cleans temporary files" test -z "$(ls -A "$t/conversion-tmp")"
+rm -rf "$media/KOBO"
+mkdir -p "$media/KINDLE/documents" "$media/KINDLE/system"
+out=$(CONVERT_FAIL=1 sendfile "$t/files/a book [draft].EPUB" --send) && fail=1
+check "a detected reader's conversion error is reported: $out" grep -q 'reader found, but conversion or transfer failed' <<<"$out"
+check "conversion failure does not fall through to no-reader" bash -c '! grep -q "no reader found" <<<"$1"' _ "$out"
+out=$(VIKIX_EBOOK_CONVERT="$t/no-such-converter" sendfile "$t/files/a book [draft].EPUB" --send) && fail=1
+check "missing Calibre explains how to install it: $out" grep -q 'conversion needs Calibre' <<<"$out"
+rm -rf "$media/KINDLE"
+out=$(sendfile "$t/files/paper.pdf" --send) && fail=1
+check "existing files report a missing reader: $out" grep -q 'no reader found' <<<"$out"
+cat > "$t/bin/gio" <<X
+#!/bin/sh
+echo "gio \$*" >> "$calls"
+case "\$1 \$2" in
+  "mount -li") echo "  activation_root=mtp://Onyx_BOOX_123/" ;;
+  "list mtp://Onyx_BOOX_123/") echo "Internal shared storage" ;;
+esac
+exit 0
+X
+out=$(sendfile "$t/files/paper.pdf" --send) || true
+check "existing PDF goes to MTP without a build: $out" grep -q '^gio copy -- .*paper.pdf mtp://Onyx_BOOX_123/Internal shared storage/Books/$' "$calls"
+printf '#!/bin/sh\nexit 0\n' > "$t/bin/gio"
+cat > "$t/bin/adb" <<X
+#!/bin/sh
+echo "adb \$*" >> "$calls"
+[ "\$1" = devices ] && printf 'List of devices attached\nABC123\tdevice\n'
+exit 0
+X
+out=$(sendfile "$t/files/paper.pdf" --send) || true
+check "existing PDF goes to adb without a build: $out" grep -q '^adb push .*paper.pdf /sdcard/Books/$' "$calls"
+printf '#!/bin/sh\necho "List of devices attached"\n' > "$t/bin/adb"
+out=$(sendfile "$t/files/missing.epub" --send) && fail=1
+check "missing input is reported: $out" grep -q 'no readable file' <<<"$out"
+out=$(sendfile "$t/files/paper.pdf" --format nope --send) && fail=1
+check "unknown output format is refused: $out" grep -q -- '--format needs' <<<"$out"
+out=$(sendfile "$t/files/paper.pdf") && fail=1
+check "existing files require an explicit transfer action: $out" grep -q 'needs --send or --to' <<<"$out"
+out=$(sendfile "$t/files/paper.pdf" --send check) && fail=1
+check "build actions cannot silently ignore existing files: $out" grep -q 'cannot use build or spell' <<<"$out"
+out=$(DRY_RUN=1 sendfile "$t/files/paper.pdf" --to "$t/file-reader" --format epub) || true
+check "dry-run sends nothing: $out" test ! -e "$t/file-reader/paper.epub"
+check "dry-run creates no conversion folder" test -z "$(ls -A "$t/conversion-tmp")"
+
 if command -v pandoc >/dev/null && command -v typst >/dev/null && python3 -c 'import bs4, lxml, yaml' 2>/dev/null; then
   # The spelling (tested below), with a stand-in hunspell and small dictionaries: which
   # words reach which dictionary is Vikix's part (code never; the marked
@@ -240,7 +330,15 @@ X
   printf '#!/bin/sh\nexit 0\n' > "$t/bin/gio"; printf '#!/bin/sh\necho "List of devices attached"\n' > "$t/bin/adb"
   chmod +x "$t/bin/gio" "$t/bin/adb"
   out=$(sendit --send) || true
-  check "--send puts it on a Kindle, in documents/: $out" test -f "$media/KINDLE/documents/small-test-book.epub"
+  check "--send puts it on a Kindle, in documents/: $out" test -f "$media/KINDLE/documents/small-test-book.azw3"
+  if [ -n "$real_converter" ]; then
+    mkdir -p "$t/real-reader"
+    out=$(PATH="$original_path" timeout --kill-after=5s 180s bash "$here/bin/vikix-publish" \
+      "$book/out/small-test-book.epub" --to "$t/real-reader" --format azw3 2>&1) || true
+    check "real Calibre converts the test EPUB to AZW3: $out" test -s "$t/real-reader/small-test-book.azw3"
+  else
+    echo "publish: Calibre not installed; real EPUB to AZW3 conversion skipped"
+  fi
   check "after building just the EPUB" test ! -e "$book/out/small-test-book.pdf"
   rm -rf "$media/KINDLE"; mkdir -p "$media/KOBOeReader/.kobo"
   out=$(sendit --send) || true
@@ -432,5 +530,5 @@ check "uninstall takes the link, epubcheck and the dictionaries" test ! -e "$HOM
 check "and leaves your books" test -f "$HOME/src/books/mine/book.md" -a -f "$book/publish.yml"
 check "and the feature" bash -c '! grep -qx publish "$1"' _ "$HOME/.config/vikix/features"
 
-[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, the links (headings, files, a stand-in web, kept a week, left when there's no network), the published entry in the project's log, --send to a Kindle, a Kobo, a BOOX over MTP or adb, new books started, a .docx as the text, the cloud skill made from the same files, the downloads' checksums checked"
+[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, the links (headings, files, a stand-in web, kept a week, left when there's no network), the published entry in the project's log, --send to a Kindle, a Kobo, a BOOX over MTP or adb, existing EPUB/PDF files, automatic Kindle AZW3 conversion, explicit formats, failed conversion cleanup, real Calibre when installed, new books started, a .docx as the text, the cloud skill made from the same files, the downloads' checksums checked"
 exit "$fail"
