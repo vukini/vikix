@@ -413,6 +413,9 @@ its id from `vikix agents task DESK`.
 - `queue defer TASK` returns it to ready; `--later` returns it to backlog.
 - `task ready TASK` makes a deferred or blocked task ready and approves it.
   A worker still at its desk must finish or be closed first.
+- `task done TASK "why"` completes an accepted task (ready for release)
+  without a release: at a desk that is no repository, or whose branch you
+  merged by hand. The Office's **Done** button is the same, by the desk.
 - `task cancel TASK "reason"` cancels the task. An existing worker continues;
   cancellation is not a command to dismiss or signal it.
 - `queue start [TASK]` starts one eligible task. `queue pause` and `queue go`
@@ -1072,7 +1075,13 @@ Permission requests stay in the worker's own approval interface; **Go to
 agent** takes you there. **Accept review** marks work ready for release;
 **Back to work…** leaves feedback in the inbox. **Release…** asks for a
 summary and opens the project's release script in a terminal; it does not
-push. A desk whose branch and the project's own changed the same lines
+push. A desk with nothing to release has **Done** instead: a project that
+is no git repository (a folder of notes, a review written in place) has
+no release, so accepting its review completes the task at once, and a
+task already accepted there is completed by **Done** or by `vikix agents
+task done ID`; a repository without a release script (`.claude/release`)
+says to merge the branch by hand first, then **Done** or closing the desk.
+A desk whose branch and the project's own changed the same lines
 (what the release's rebase would stop on, asked of git without touching
 either) has no **Release…**: the item says *conflicts with main in
 lib/man.py: rebase at the desk first*, and so does the task's row. Once a release runs on the desk's branch, started here or in the

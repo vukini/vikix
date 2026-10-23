@@ -208,6 +208,16 @@ check "close with the branch kept (not merged) blocks the task on its desk, said
   test "$(field "$i" 't["status"]["value"], t["blocked"]["on"], t["status"]["reason"]')" = "('blocked', 'desk', 'desk closed, its branch i kept: not merged')"
 check "the branch is still there" git -C "$t/src/book" show-ref -q --verify refs/heads/i
 check "a blocked task can be made ready again, or cancelled" test "$(py 'print(T.move(sys.argv[1], "ready", "user")["status"]["value"])' "$i")" = ready
+# task done: the user's word completes an accepted task without a release (a desk that is no
+# repository, or a branch merged by hand); a task not accepted yet is refused.
+out=$(agents task "done" "$i" "merged by hand")
+check "task done refuses a task not accepted yet, saying what it is: $out" \
+  bash -c 'grep -q "only an accepted task (ready for release) is marked done; .* is ready" <<<"$1" && [ "$(field "$2" "t[\"status\"][\"value\"]")" = ready ]' _ "$out" "$i"
+py 'T.move(sys.argv[1], "running", "user"); T.move(sys.argv[1], "ready for release", "user")' "$i"
+out=$(agents task "done" "$i" "merged by hand")
+check "task done completes an accepted task, with the words given: $out" \
+  test "$(field "$i" 't["status"]["value"], t["status"]["reason"], t["status"]["by"], bool(t["done"])')" = "('completed', 'merged by hand', 'user', True)"
+check "the events say completed" bash -c 'grep -q "\"kind\": \"completed\".*\"task\": \"$1\"" <<<"$(events)"' _ "$i"
 
 # --- The table: every transition, and a refused one ---------------------------------------------
 py '
@@ -457,7 +467,7 @@ check "--json is the board: the sections with their rows, the sequence, the queu
 out=$(agents task c)
 check "task by a desk's name is the desk's task, with its history: $out" \
   bash -c 'grep -q "^Task $2: Chapter two, the index" <<<"$1" && grep -q "^History (" <<<"$1" && grep -q "^Launches: 3" <<<"$1"' _ "$out" "$c2"
-check "every form of the work is in help" test "$(agents help work | grep -c '^  vikix agents')" = 21
+check "every form of the work is in help" test "$(agents help work | grep -c '^  vikix agents')" = 22
 rm -f "$HOME/.config/vikix/office"
 export VIKIX_TASK_ORIGIN="plan chapters"
 agents handoff g --task "A plan's task" >/dev/null; g=$(task_of g)

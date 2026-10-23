@@ -81,7 +81,7 @@ def tasks_split(tasks, every=False):
 
 def task_cmd(argv):
     """vikix agents task ID [--json]: one task's page, with its history."""
-    if argv and argv[0] in ('priority', 'cancel', 'ready', 'new'):
+    if argv and argv[0] in ('priority', 'cancel', 'ready', 'done', 'new'):
         return task_change(list(argv))
     T = tasks_module()
     as_json, words = False, []
@@ -338,6 +338,19 @@ def task_change(argv):
                 die('a worker is still at its desk')
             tasks_module().update(t['id'], lambda t: t['origin'].update(approved={'by': by, 'at': int(time.time())}))
             tasks_module().move(t['id'], 'ready', by)
+    elif action == 'done':
+        # The user's word that an accepted task is done without a release:
+        # at a desk that is no repository, or whose branch was merged by hand
+        # (the Office's Done does the same, by the desk).
+        if not argv or len(argv) > 2:
+            die('task done TASK ["why"]')
+        T = tasks_module()
+        t = T.load(argv[0]) or die(f'no task {argv[0]} (vikix agents tasks lists them)')
+        if t['status']['value'] != 'ready for release':
+            die(f"only an accepted task (ready for release) is marked done; {t['id']} is {t['status']['value']}")
+        why = T.word(argv[1], 'why', 200).strip() if len(argv) == 2 else ''
+        T.move(t['id'], 'completed', by, why or 'done without a release, on your word', kind='completed', done=True)
+        print(f"{t['id']} completed: {why or 'done without a release'}")
     elif action == 'new':
         if len(argv) < 3:
             die('task new PROJECT TOPIC "task" [--use PROVIDER] [--priority LEVEL] [--after TASK]')

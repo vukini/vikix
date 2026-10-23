@@ -87,7 +87,7 @@ class Decisions(unittest.TestCase):
         from unittest.mock import Mock
         folder = Path(self.temp.name, 'desk with spaces'); (folder / '.claude').mkdir(parents=True)
         (folder / '.claude' / 'release').write_text('# stand-in')
-        api = SimpleNamespace(by_me=lambda: ('user', None),
+        api = SimpleNamespace(by_me=lambda: ('user', None), common_of=lambda _: '/repo/.git',
                               desk_for=lambda _: (str(folder), {'desk': {'branch': 'topic'}}),
                               tasks_module=lambda: T, open_terminal=Mock(), release_conflicts=lambda _: ('main', []))
         office.release_action(api, str(folder), 'literal $(touch bad); words')
@@ -108,6 +108,80 @@ class Decisions(unittest.TestCase):
         api.release_conflicts = lambda _: None
         office.release_action(api, str(folder), 'summary')
         self.assertEqual(api.open_terminal.call_count, 2)
+        # A desk with no road to a release is refused with the road and what
+        # to do instead, before a terminal opens: no repository (a folder of
+        # notes), no script, no branch.
+        api.common_of = lambda _: ''
+        with self.assertRaisesRegex(ValueError, 'no git repository at this desk: nothing to release, mark it done'):
+            office.release_action(api, str(folder), 'summary')
+        api.common_of = lambda _: '/repo/.git'
+        (folder / '.claude' / 'release').unlink()
+        with self.assertRaisesRegex(ValueError, r'no release script in the project \(.claude/release\): merge its branch by hand'):
+            office.release_action(api, str(folder), 'summary')
+        (folder / '.claude' / 'release').write_text('# stand-in')
+        api.desk_for = lambda _: (str(folder), {'desk': {'branch': ''}})
+        with self.assertRaisesRegex(ValueError, 'the desk is on no branch'):
+            office.release_action(api, str(folder), 'summary')
+        self.assertEqual(api.open_terminal.call_count, 2)
+
+    def test_done_without_a_release(self):
+        """A desk with nothing to release: the item offers Done (and the row
+        says so); done_action and task done complete the accepted task on the
+        user's word, refusing a task not accepted yet and an agent's word;
+        accepting the review at a desk that is no repository completes it at once."""
+        from types import SimpleNamespace
+        t = T.load(self.tid)
+        t['status'] = {'value': 'ready for release', 'by': 'user', 'at': 10}
+        row = {'id': '/test/desk', 'task_record': t, 'agents': [], 'release': '', 'no_release': 'no git repository at this desk'}
+        snap = {'tasks': [t], 'desks': [row], 'live_known': True}
+        self.assertEqual([(i['kind'], i['why'], i['actions']) for i in office.attention(snap, now=5000)],
+                         [('release', 'no git repository at this desk: nothing to release, mark it done', ['done', 'go'])])
+        self.assertEqual(office.board_row(t, row, 5000, {})['state'],
+                         'accepted, no git repository at this desk: nothing to release, mark it done')
+        row['no_release'] = 'no release script in the project (.claude/release)'
+        self.assertEqual([i['why'] for i in office.attention(snap, now=5000)],
+                         ['no release script in the project (.claude/release): merge its branch by hand, then mark it done or close the desk'])
+        # The road comes before conflicts: nothing to rebase for.
+        row['conflicts'] = 'conflicts with main in lib/man.py'
+        self.assertEqual([i['actions'] for i in office.attention(snap, now=5000)], [['done', 'go']])
+        # done_action: the user's word, for an accepted task only.
+        rec = {'task': {'id': self.tid}, 'desk': {'branch': ''}}
+        api = SimpleNamespace(by_me=lambda: ('codex 42', {'pid': 42}), common_of=lambda _: '',
+                              desk_for=lambda _: ('/test/desk', rec), tasks_module=lambda: T)
+        with self.assertRaisesRegex(ValueError, 'only the user'):
+            office.done_action(api, '/test/desk')
+        api.by_me = lambda: ('user', None)
+        with self.assertRaisesRegex(ValueError, 'not accepted yet'):
+            office.done_action(api, '/test/desk')
+        self.assertEqual(T.load(self.tid)['status']['value'], 'running')
+        T.move(self.tid, 'ready for release', 'user')
+        office.done_action(api, '/test/desk')
+        done = T.load(self.tid)
+        self.assertEqual((done['status']['value'], done['status']['reason']),
+                         ('completed', 'done without a release: no git repository at this desk'))
+        self.assertTrue(done.get('done'))
+        self.assertEqual([e['kind'] for e in T.events_read(task=self.tid, limit=1)], ['completed'])
+        # Accepting the review at a desk that is no repository completes the task at once.
+        other = T.new('Write the review', 'notes', 'user', desk={'id': 'def', 'worktree': '/test/notes', 'branch': ''})
+        T.move(other['id'], 'running', 'user'); T.move(other['id'], 'needs review', 'codex 42')
+        rec = {'task': {'id': other['id']}, 'desk': {'branch': '', 'tests': 'off'}, 'checks': []}
+        applied = []
+        api = SimpleNamespace(by_me=lambda: ('user', None), common_of=lambda _: '',
+                              desk_for=lambda _: ('/test/notes', rec), tasks_module=lambda: T,
+                              handoff_module=lambda: SimpleNamespace(observe=lambda _: {}, freshness=lambda *_: 'fresh'),
+                              handoff_apply=lambda folder, data, by: (applied.append(data), T.handoff_move(other['id'], data['status'], by)))
+        office.review_action(api, '/test/notes', True)
+        self.assertEqual(applied[0]['status'], 'finished')
+        self.assertEqual(T.load(other['id'])['status']['value'], 'completed')
+        self.assertEqual([e['kind'] for e in T.events_read(task=other['id'], limit=2)], ['completed', 'accepted'])
+        # At a repository the accepted task waits for its release, as before.
+        third = T.new('Fix the picker', 'book', 'user', desk={'id': 'ghi', 'worktree': '/test/repo', 'branch': 'fix'})
+        T.move(third['id'], 'running', 'user'); T.move(third['id'], 'needs review', 'codex 42')
+        rec = {'task': {'id': third['id']}, 'desk': {'branch': 'fix', 'tests': 'off'}, 'checks': []}
+        api.common_of = lambda _: '/repo/.git'
+        api.handoff_apply = lambda folder, data, by: T.handoff_move(third['id'], data['status'], by)
+        office.review_action(api, '/test/repo', True)
+        self.assertEqual(T.load(third['id'])['status']['value'], 'ready for release')
 
     def test_validation_and_user_only(self):
         for kw in ({'recommended': 'missing'}, {'choices': [{'label': 'a'}, {'label': 'a'}]},

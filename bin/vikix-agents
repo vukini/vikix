@@ -278,6 +278,10 @@
                        change priority independently of queue order; user only
   vikix agents task cancel TASK ["why"]
                        cancel the task; a worker already running is not stopped
+  vikix agents task done TASK ["why"]
+                       complete an accepted task without a release: at a desk
+                       that is no repository (notes, a review), or whose
+                       branch you merged by hand; user only
   vikix agents task ready TASK
                        make a deferred or blocked task ready and approved; no worker starts
 
@@ -329,6 +333,7 @@
   vikix agents office --accept DESK  accept a review after fresh passing tests
   vikix agents office --back DESK TEXT  send a review back with feedback
   vikix agents office --release DESK TEXT  open its release in a terminal
+  vikix agents office --done DESK [WHY]  complete its accepted task without a release
   vikix agents office --new-task PROJECT "task" [--desk FOLDER | --topic TOPIC] [--priority LEVEL] [--after ID]... [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] [--queue]
                        the Office's New task form: a task record, ready, at a
                        desk that stands (--desk: its record names the task,
@@ -864,12 +869,12 @@ SECTIONS = (
                                                               "plan pause", "plan stop", "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
-    ("work", "The work: tasks and their history", ("tasks", "tasks adopt", "task", "task new", "task ready", "task priority", "task cancel", "queue", "queue add", "queue next", "queue defer", "queue start", "queue bump", "queue tick", "ask", "ask --wait", "answer", "attention", "events")),
+    ("work", "The work: tasks and their history", ("tasks", "tasks adopt", "task", "task new", "task ready", "task priority", "task cancel", "task done", "queue", "queue add", "queue next", "queue defer", "queue start", "queue bump", "queue tick", "ask", "ask --wait", "answer", "attention", "events")),
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "place", "touch", "stopping", "left", "exited --code", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
                                                       "office --form", "office --plan", "office --desk", "office --worker",
-                                                      "office --close-desk", "office --project", "office --answer", "office --accept", "office --back", "office --release",
+                                                      "office --close-desk", "office --project", "office --answer", "office --accept", "office --back", "office --release", "office --done",
                                                       "office --new-task",
                                                       "--waits")),
 )

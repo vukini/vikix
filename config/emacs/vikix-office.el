@@ -719,6 +719,12 @@ is drawn when PLANS is empty."
              (when (member "test" (alist-get 'actions item))
                (vikix-office--button "Test again" (lambda () (with-current-buffer owner
                                                             (vikix-office--act (list "office" "--test" desk) #'vikix-office-refresh)))))
+             (when (member "done" (alist-get 'actions item))
+               ;; Nothing to release at this desk (no repository, or a
+               ;; branch merged by hand): the task is done on your word.
+               (vikix-office--button "Done"
+                                    (lambda () (with-current-buffer owner
+                                                 (vikix-office--act (list "office" "--done" desk) #'vikix-office-refresh)))))
              (when (member "release" (alist-get 'actions item))
                (vikix-office--button "Release…"
                                     (lambda () (with-current-buffer owner

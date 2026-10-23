@@ -1684,6 +1684,35 @@ and q puts the windows back; the only frame is never deleted."
      (should (equal sent '("office" "--answer" "d-20261014-abcdef" "keep $(literal); words")))
      (should (eq (lookup-key vikix-office-mode-map (kbd "D")) #'vikix-office-answer)))))
 
+(ert-deftest office-attention-done-where-nothing-to-release ()
+  "A release item for a desk with nothing to release (a project that is no
+repository) has Done, which marks the task done by the desk, and no Release;
+one with release has Release and no Done."
+  (office-test-buffer
+   (let ((item '((id . "release:t-1:10") (kind . "release") (title . "Monthly review") (task . "t-1")
+                 (why . "no git repository at this desk: nothing to release, mark it done")
+                 (since . 1) (desk . "/tmp/notes") (actions . ("done" "go"))))
+         (labels (lambda () (let (labels) (save-excursion (goto-char (point-min))
+                                                         (while (forward-button 1 nil nil t) (push (button-label (button-at (point))) labels)))
+                              labels)))
+         sent)
+     (setf (alist-get 'attention vikix-office--data) (list item))
+     (vikix-office--render)
+     (should (string-match-p "nothing to release, mark it done" (buffer-string)))
+     (should (member "Done" (funcall labels)))
+     (should-not (member "Release…" (funcall labels)))
+     ;; The attention items' buttons are text buttons, not widgets: pressed by label.
+     (cl-letf (((symbol-function 'vikix-office--act) (lambda (args &optional _) (setq sent args))))
+       (goto-char (point-min))
+       (while (and (forward-button 1 nil nil t) (not (equal (button-label (button-at (point))) "Done"))))
+       (should (equal (button-label (button-at (point))) "Done"))
+       (button-activate (button-at (point))))
+     (should (equal sent '("office" "--done" "/tmp/notes")))
+     (setf (alist-get 'actions (car (alist-get 'attention vikix-office--data))) '("release" "go"))
+     (vikix-office--render)
+     (should (member "Release…" (funcall labels)))
+     (should-not (member "Done" (funcall labels))))))
+
 (ert-deftest office-queue-order-blockers-and-actions ()
   (office-test-buffer
    (setf (alist-get 'queue vikix-office--data)

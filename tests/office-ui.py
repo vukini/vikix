@@ -615,6 +615,11 @@ class Office(unittest.TestCase):
             asked.append(folder)
             return ('main', ['lib/man.py'])
         self.records = [self.rec]
+        # A desk that can be released: a repository, with the script, on a branch.
+        self.common = '/repo/.git'
+        self.rec['desk']['branch'] = 'wifi'
+        Path(self.folder, '.claude').mkdir()
+        Path(self.folder, '.claude', 'release').write_text('# stand-in')
         with patch.object(A, 'release_conflicts', conflicts), patch.object(A, 'desk_of', lambda f: f):
             self.assertEqual(office.snapshot(A)['desks'][0]['conflicts'], '')
             self.assertEqual(asked, [])
@@ -622,7 +627,16 @@ class Office(unittest.TestCase):
             self.rec['task'] = {'text': 'Fix the picker', 'id': task['id']}
             T.move(task['id'], 'running', 'user'); T.move(task['id'], 'ready for release', 'user')
             row = office.snapshot(A)['desks'][0]
-            self.assertEqual((row['conflicts'], asked), ('conflicts with main in lib/man.py', [os.path.realpath(self.folder)]))
+            self.assertEqual((row['conflicts'], row['no_release'], asked),
+                             ('conflicts with main in lib/man.py', '', [os.path.realpath(self.folder)]))
+            # A desk with no road to a release (no repository here) says so
+            # on its row, and git isn't asked for conflicts: Done, not Release.
+            self.common = ''
+            row = office.snapshot(A)['desks'][0]
+            self.assertEqual((row['no_release'], row['conflicts'], len(asked)), ('no git repository at this desk', '', 1))
+            self.assertEqual([(i['why'], i['actions']) for i in office.attention(office.snapshot(A)) if i['kind'] == 'release'],
+                             [('no git repository at this desk: nothing to release, mark it done', ['done', 'go'])])
+            self.common = '/repo/.git'
             self.assertEqual([(i['kind'], i['actions']) for i in office.attention(office.snapshot(A)) if i['kind'] == 'release'],
                              [('release', ['go'])])
             with patch.object(A, 'release_conflicts', lambda f: ('main', [])):

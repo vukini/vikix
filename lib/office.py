@@ -307,6 +307,10 @@ def attention(snapshot, now=None, quiet=20):
             # at the desk comes first, and the item says where.
             if terminal in ('gup', 'close'):
                 why, actions = 'run gup to push and update' if terminal == 'gup' else 'close the finished terminal', ['go']
+            elif row.get('no_release'):
+                # Nothing to release: the task is done on your word (Done, or
+                # vikix agents task done), or merged by hand where a branch is.
+                why, actions = row['no_release'] + ': ' + no_release_words(row['no_release']), ['done', 'go']
             elif row.get('conflicts'):
                 why, actions = row['conflicts'] + ': rebase at the desk first (git rebase there), then release', ['go']
             else:
@@ -445,6 +449,7 @@ def board_row(task, desk, now, queue_rows):
         section = 'Completed'
         # Under release: the step the release is at, from the desk's row.
         words = (f"under release: {desk['release']}" if desk.get('release')
+                 else f"accepted, {desk['no_release']}: {no_release_words(desk['no_release'])}" if desk.get('no_release')
                  else f"accepted, {desk['conflicts']}: rebase at the desk first" if desk.get('conflicts')
                  else 'accepted, not yet released')
         line = f"{head} · {place} · {words} · {title}"
@@ -1015,9 +1020,17 @@ def snapshot(api, include_queue=True):
         # (merge-tree, nothing written) only for such a desk, standing, with
         # no release under way on it; '' otherwise, or when git can't say.
         row['conflicts'] = ''
+        # A desk with no road to a release (a project that is no repository,
+        # such as a folder of notes; a repository without .claude/release; a
+        # desk off any branch) says so, since Release could only fail there
+        # (2026-10-23: a monthly review's task sat at ready for release for a
+        # day, its Release button answering 'needs a release script'). Asked
+        # for the same desks as conflicts, before git is asked for those.
+        row['no_release'] = ''
         if (task and (task.get('status') or {}).get('value') == 'ready for release'
                 and row['kind'] == 'desk' and row['exists'] and not row['release']):
-            found = api.release_conflicts(path)
+            row['no_release'] = release_road(api, path, d)
+            found = api.release_conflicts(path) if not row['no_release'] else None
             if found and found[1]:
                 row['conflicts'] = f"conflicts with {found[0]} in {', '.join(found[1])}"
         if row['archived']:
@@ -1506,18 +1519,47 @@ def launch(api, tty=False):
                    check=False, timeout=20)
 
 
+NO_RELEASE_REPOSITORY = 'no git repository at this desk'
+
+
+def release_road(api, folder, desk):
+    """Why FOLDER (a desk, its record's DESK part) can't be released by
+    .claude/release: '' when it can. The three things the release needs,
+    in the order they are missing: a repository, the script, a branch."""
+    if not api.common_of(folder):
+        return NO_RELEASE_REPOSITORY
+    if not os.path.isfile(os.path.join(folder, '.claude', 'release')):
+        return 'no release script in the project (.claude/release)'
+    branch = (desk or {}).get('branch') or ''
+    if not branch or branch.startswith('-'):
+        return 'the desk is on no branch'
+    return ''
+
+
+def no_release_words(road):
+    """What is yours to do at a desk with no ROAD to a release: nothing
+    where there is no repository (its work is notes, in place already), a
+    merge by hand where there is one."""
+    if road == NO_RELEASE_REPOSITORY:
+        return 'nothing to release, mark it done'
+    return 'merge its branch by hand, then mark it done or close the desk'
+
+
 def release_action(api, folder, summary):
     by, me = api.by_me()
     if me or by != 'user':
         raise ValueError('the user starts a release from the Office')
     folder, rec = api.desk_for([folder])
-    script = os.path.join(folder, '.claude', 'release')
     summary = api.tasks_module().word(summary, 'release summary', 200).strip()
-    if not summary or not rec or not os.path.isfile(script):
-        raise ValueError('this desk needs a release script and a summary')
-    branch = rec['desk'].get('branch') or ''
-    if not branch or branch.startswith('-'):
-        raise ValueError('the desk has no release branch')
+    if not rec:
+        raise ValueError('this desk has no record to release')
+    road = release_road(api, folder, rec['desk'])
+    if road:
+        raise ValueError(f"{road}: {no_release_words(road)} (the Office's Done, or vikix agents task done ID)")
+    if not summary:
+        raise ValueError('a release needs a summary: what it brings, in a line')
+    script = os.path.join(folder, '.claude', 'release')
+    branch = rec['desk']['branch']
     found = api.release_conflicts(folder)
     if found and found[1]:
         raise ValueError(f"{branch} and {found[0]} changed the same lines ({', '.join(found[1])}): "
@@ -1527,6 +1569,27 @@ def release_action(api, folder, summary):
     api.open_terminal(folder, ['bash', '-c', '"$@"; code=$?; read -r -p "Press Enter to close"; exit "$code"',
                                'office-release', script, branch, summary])
     print('Release opened in a terminal; nothing pushed.')
+
+
+def done_action(api, folder, why=''):
+    """The user's word that the desk's accepted task is done: completed
+    with no release, for a desk that has nothing to release or whose branch
+    was merged by hand. A task still at work, or under review, is refused."""
+    by, me = api.by_me()
+    if me or by != 'user':
+        raise ValueError('only the user marks a task done without a release')
+    folder, rec = api.desk_for([folder])
+    T = api.tasks_module()
+    task = T.load((rec or {}).get('task', {}).get('id', ''))
+    if not task:
+        raise ValueError('this desk has no task record')
+    if task['status']['value'] != 'ready for release':
+        raise ValueError(f"this task is not accepted yet (it is {task['status']['value']}); accept its review first")
+    road = release_road(api, folder, rec['desk'])
+    why = T.word(why, 'why', 200).strip() if why else ''
+    reason = why or (road and f"done without a release: {road}") or 'done without a release, on your word'
+    T.move(task['id'], 'completed', by, reason, kind='completed', done=True)
+    print(f"Done: {task['title']} completed, {reason}.")
 
 
 def review_action(api, folder, accept, text=''):
@@ -1544,7 +1607,14 @@ def review_action(api, folder, accept, text=''):
         if rec['desk'].get('tests') != 'off' and (not latest.get('ok') or latest.get('skipped') or api.handoff_module().freshness(latest, api.handoff_module().observe(folder)) != 'fresh'):
             raise ValueError('run the tests on the current code before accepting the review')
         api.handoff_apply(folder, {'status': 'finished', 'next': 'Review accepted by the user; ready for release.'}, by)
-        print('Review accepted; ready for release.')
+        # A desk that is no repository has nothing to release: its work (notes,
+        # a review) is in place already, so the accepted task is done here,
+        # instead of waiting for a Release that could only fail.
+        if release_road(api, folder, rec['desk']) == NO_RELEASE_REPOSITORY:
+            T.move(task['id'], 'completed', by, f"done without a release: {NO_RELEASE_REPOSITORY}", kind='completed', done=True)
+            print('Review accepted; nothing to release at this desk, so the task is done.')
+        else:
+            print('Review accepted; ready for release.')
     else:
         text = T.clean(text, 'review feedback').strip()
         if not text:
@@ -1563,6 +1633,8 @@ def main(api, args):
         print(json.dumps(data, ensure_ascii=False))
     elif len(args) == 3 and args[0] == '--release':
         release_action(api, args[1], args[2])
+    elif len(args) in (2, 3) and args[0] == '--done':
+        done_action(api, args[1], args[2] if len(args) == 3 else '')
     elif len(args) == 2 and args[0] == '--accept':
         review_action(api, args[1], True)
     elif len(args) == 3 and args[0] == '--back':
@@ -1600,7 +1672,7 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json [--notify] | --answer ID TEXT | --accept DESK | --back DESK TEXT | --release DESK TEXT | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart] | --new-task PROJECT "task" [--desk FOLDER | --topic TOPIC] [--priority LEVEL] [--after ID]... [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] [--queue]]')
+        raise ValueError('vikix agents office [--tty | --json [--notify] | --answer ID TEXT | --accept DESK | --back DESK TEXT | --release DESK TEXT | --done DESK [WHY] | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart] | --new-task PROJECT "task" [--desk FOLDER | --topic TOPIC] [--priority LEVEL] [--after ID]... [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] [--queue]]')
     if args and args[0] in ('--unpause', '--pause'):
         api.scheduler_module().wake(os.path.join(api.VIKIX_DIR, 'bin', 'vikix-agents'))
     return 0
