@@ -251,7 +251,10 @@ reader_file() {
 
 send_to_drive() {
   local epub=$1 d dest target prepared
-  for d in "$MEDIA"/*/ /media/"$USER"/*/; do
+  local drives=("$MEDIA"/*/)
+  # An explicit media root confines tests and callers to that root.
+  [ -n "${VIKIX_MEDIA:-}" ] || drives+=(/media/"$USER"/*/)
+  for d in "${drives[@]}"; do
     [ -d "$d" ] || continue
     dest=""; target=auto
     if [ -d "$d/documents" ] && [ -d "$d/system" ]; then
