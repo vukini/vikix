@@ -974,8 +974,15 @@ a talk. Every login starts with it off."
 after how many days to remind. vikix-backup writes it; no file, no backups
 set up.")
 
+(defparameter *vikix-backup-progress-file*
+  (merge-pathnames ".local/state/vikix/backup-progress" (user-homedir-pathname))
+  "\"PERCENT AT\" while a backup runs: how far it is, written at AT (Unix
+time) a second at a time by lib/backup-progress.py, which removes the file
+at the end.")
+
 (defvar *vikix-backup* ""
-  "The bar's reminder: \"backup 9d\", \"backup\" (set up, none yet), or \"\".")
+  "The bar's reminder: \"backup 42%\" while one runs, \"backup 9d\",
+\"backup\" (set up, none yet), or \"\".")
 
 (defun vikix-backup-text (last days now)
   "The reminder for a last backup at LAST, reminding after DAYS days, at
@@ -985,8 +992,16 @@ NOW (all Unix times but DAYS). NIL LAST means backups aren't set up."
         (t (let ((age (floor (- now last) 86400)))
              (if (>= age days) (format nil "backup ~ad" age) "")))))
 
+(defun vikix-backup-progress-text (percent at now)
+  "\"backup 42%\" while a backup runs: PERCENT was written at AT, read at
+NOW (Unix times). Nothing once the line is a minute old: a backup that died
+left its file behind."
+  (if (and percent at (< (- now at) 60))
+      (format nil "backup ~a%" percent)
+      ""))
+
 (defun vikix-backup-refresh ()
-  "Read vikix-backup's file into *vikix-backup*; redraw the bar if it changed."
+  "Read vikix-backup's files into *vikix-backup*; redraw the bar if it changed."
   (let* ((line (ignore-errors
                 (with-open-file (in *vikix-backup-file*) (read-line in nil ""))))
          (words (and line (split-string line " ")))
@@ -994,7 +1009,13 @@ NOW (all Unix times but DAYS). NIL LAST means backups aren't set up."
          (days (or (ignore-errors (parse-integer (second words))) 7))
          ;; Lisp counts from 1900, Unix from 1970.
          (now (- (get-universal-time) 2208988800))
-         (new (vikix-backup-text last days now)))
+         (pline (ignore-errors
+                 (with-open-file (in *vikix-backup-progress-file*) (read-line in nil ""))))
+         (pwords (and pline (split-string pline " ")))
+         (running (vikix-backup-progress-text
+                   (ignore-errors (parse-integer (first pwords)))
+                   (ignore-errors (parse-integer (second pwords))) now))
+         (new (if (string= running "") (vikix-backup-text last days now) running)))
     (unless (string= new *vikix-backup*)
       (setf *vikix-backup* new)
       (vikix-bar-redraw))))

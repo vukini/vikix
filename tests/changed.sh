@@ -163,6 +163,7 @@ for f in "${files[@]}"; do
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
     config/udev/*.rules) add drives ;;   # the Thunderbolt drives rule, read by tests/drives.sh
+    lib/backup-progress.py) add backup ;;   # restic's progress as a bar, tried on made-up lines
     site/*) add lint ;;
     cuis/*) add cuis ;;   # Vikix's Smalltalk
     # The office's front and its parts: their tests are named below (fifteen

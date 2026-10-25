@@ -371,7 +371,7 @@ Your home folder, backed up with restic.
 
 - `vikix backup setup [PLACE]` — once: where backups go. With no PLACE, the USB drive plugged in (it asks when there are several); or a drive's folder (/run/media/you/DRIVE), or any restic place (sftp:host:/path, b2:bucket:path, ...)
 - `vikix backup card [--print] [--kept] [FILE]` — the password as a card to print and put in a drawer (a one-page PDF when typst is here, else text); --kept says it is put away
-- `vikix backup [now]` — back up now: all of ~, minus what `~/.config/vikix/backup-exclude` leaves out
+- `vikix backup [now]` — back up now: all of ~, minus what `~/.config/vikix/backup-exclude` leaves out; how far it is shows as a bar in the terminal, as "backup 42%" in the bar, and (from the menu, or the drive plugged in) as one notification that fills up
 - `vikix backup status` — where, when the last one was, what is left out
 - `vikix backup list` — the backups, newest last
 - `vikix backup restore PATH [ID]` — bring back PATH (a file or folder) from the latest backup, or backup ID, into `~/Restored/<time>/`; nothing is overwritten

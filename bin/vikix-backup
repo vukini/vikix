@@ -11,7 +11,11 @@
 #                                drawer (a one-page PDF when typst is here,
 #                                else text); --kept says it is put away
 #   vikix backup [now]         back up now: all of ~, minus what
-#                                ~/.config/vikix/backup-exclude leaves out
+#                                ~/.config/vikix/backup-exclude leaves out;
+#                                how far it is shows as a bar in the
+#                                terminal, as "backup 42%" in the bar, and
+#                                (from the menu, or the drive plugged in) as
+#                                one notification that fills up
 #   vikix backup status        where, when the last one was, what is left out
 #   vikix backup list          the backups, newest last
 #   vikix backup restore PATH [ID]   bring back PATH (a file or folder) from
@@ -71,6 +75,10 @@ is_local() { case $1 in /*) return 0 ;; *) return 1 ;; esac; }
 notify() { [ -n "${notify:-}" ] && command -v notify-send >/dev/null 2>&1 && notify-send "$@" || true; }
 
 write_bar() { mkdir -p "$state"; echo "$1 $(days)" > "$bar_file"; }
+# The bar reads the backup files every 10 seconds; this asks it to look now.
+nudge_bar() {
+  ( python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-backup-refresh)' >/dev/null 2>&1 & ) || true
+}
 
 cmd_setup() {
   local place=${1:-} repo drives=() n i
@@ -310,11 +318,18 @@ cmd_now() {
   log="$state/logs/backup-$(timestamp).log"
   started=$(date +%s)
   say "backing up $HOME to $repo (the log: $log)"
-  notify -u low "Backup" "Started. You can keep working."
+  # restic says how far it is a second at a time (--json, with
+  # RESTIC_PROGRESS_FPS), and lib/backup-progress.py turns that into a bar in
+  # the terminal, the bar's "backup 42%" ($state/backup-progress, read by
+  # commands.lisp), one notification kept up to date and ending in "Backup
+  # done" (--notify), and a readable log.
+  local progress=(python3 "$VIKIX_DIR/lib/backup-progress.py" --log "$log" --progress "$state/backup-progress")
+  [ -z "${notify:-}" ] || progress+=(--notify)
   # --one-file-system: not into drives mounted under ~. --exclude-caches:
   # not into folders marked as caches (CACHEDIR.TAG, e.g. Rust's target/).
-  if ! r backup "$HOME" --exclude-file "$exclude" --exclude-caches --one-file-system \
-         --tag vikix 2>&1 | tee "$log"; then
+  if ! RESTIC_PROGRESS_FPS=1 r backup "$HOME" --exclude-file "$exclude" --exclude-caches --one-file-system \
+         --tag vikix --json 2>&1 | "${progress[@]}"; then
+    nudge_bar
     notify -u critical "Backup failed" "See $log"
     die "the backup failed; the log is $log"
   fi
@@ -322,9 +337,9 @@ cmd_now() {
   r forget --tag vikix --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune >>"$log" 2>&1 ||
     warn "couldn't thin out old backups (the new one is fine); see $log"
   write_bar "$(date +%s)"
+  nudge_bar
   local secs=$(( $(date +%s) - started )) took
   if [ "$secs" -lt 60 ]; then took="$secs s"; else took="$(( (secs + 30) / 60 )) min"; fi
-  notify -u low "Backup done" "Took $took."
   say "done in $took"
 }
 

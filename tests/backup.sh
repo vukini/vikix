@@ -70,8 +70,43 @@ last=$(cut -d' ' -f1 "$bar")
 check "the bar wasn't told when the backup ran" test "$(( $(date +%s) - last ))" -lt 300
 # From a terminal it prints; notifications are for the menu's --notify.
 check "a backup from the terminal sent notifications" test ! -e "$t/notes"
+check "the progress file should be gone after" test ! -e "$HOME/.local/state/vikix/backup-progress"
+newest=$(ls -t "$HOME/.local/state/vikix/logs"/backup-*.log | head -1)
+check "the log should be words, not restic's JSON: $(head -c 120 "$newest")" bash -c '! grep -q message_type "$1" && grep -q "done: .*files new" "$1"' _ "$newest"
 vb now --notify >/dev/null 2>&1
 check "--notify didn't say the backup was done" grep -q "Backup done" "$t/notes"
+
+# --- the progress bar (lib/backup-progress.py on made-up restic lines) ---------------
+# notify-send -p prints an id; the stand-in says 7, and writes down each call.
+printf '#!/bin/sh\necho "$*" >> "%s/notes"\ncase " $* " in *" -p "*) echo 7 ;; esac\n' "$t" > "$t/bin/notify-send"
+rm -f "$t/notes"
+plog="$t/progress.log"; pfile="$t/progress"
+pb() { python3 "$here/lib/backup-progress.py" --log "$plog" --progress "$pfile" --notify --bar; }
+out=$(printf '%s\n' \
+  '{"message_type":"verbose_status","action":"scan_finished","item":"","total_files":3}' \
+  '{"message_type":"status","percent_done":0.42,"total_files":5000,"files_done":1234,"total_bytes":29100000000,"bytes_done":12300000000,"seconds_remaining":250}' \
+  '{"message_type":"error","error":{"message":"permission denied"},"during":"archival","item":"/home/me/locked"}' \
+  'plain words from restic' \
+  '{"message_type":"summary","files_new":12,"files_changed":3,"files_unmodified":4000,"data_added":1200000000,"total_duration":185.2,"snapshot_id":"abcdef1234567890"}' \
+  | { pb 2>"$t/progress.err"; echo "rc=$?"; echo "file after: $(cat "$pfile" 2>/dev/null || echo gone)"; })
+check "the filter should exit 0 and remove the progress file: $out" bash -c 'grep -q "rc=0" <<<"$1" && grep -q "file after: gone" <<<"$1"' _ "$out"
+check "the bar should show the percent and the amounts: $(cat "$t/progress.err")" grep -q '\[########............\]  42%  12.3 GB of 29.1 GB, 1234/5000 files, 4 min left' "$t/progress.err"
+check "the error should be said as it comes" grep -q 'error: permission denied (/home/me/locked)' "$t/progress.err"
+check "restic's plain words should be said too" grep -q 'error: plain words from restic' "$t/progress.err"
+check "the summary should be in words on stdout: $out" grep -q 'backup done: 12 files new, 3 changed, 4000 unchanged, 1.2 GB added, took 3 min; backup abcdef12' <<<"$out"
+check "the log should have the progress, the error and the summary: $(cat "$plog")" bash -c 'grep -q " 42%  12.3 GB" "$1" && grep -q "error: permission denied" "$1" && grep -q "done: 12 files new" "$1" && ! grep -q message_type "$1"' _ "$plog"
+check "the notification should carry dunst's bar and be replaced, not added: $(cat "$t/notes")" bash -c 'grep -q -- "-h int:value:42 -p Backup 42% 12.3 GB of 29.1 GB" "$1" && grep -q -- "-h int:value:100 -r 7 Backup done 12 files new" "$1"' _ "$t/notes"
+# The bar's file while it runs: PERCENT and the time, within a second.
+printf '{"message_type":"status","percent_done":0.5,"total_bytes":10,"bytes_done":5}\n' |
+  python3 -c '
+import subprocess, sys, time
+p = subprocess.Popen([sys.argv[1], "--progress", sys.argv[2]], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+p.stdin.write(sys.stdin.buffer.read()); p.stdin.flush()
+time.sleep(0.5)
+words = open(sys.argv[2]).read().split()
+ok = words[0] == "50" and abs(int(words[1]) - time.time()) < 5
+p.stdin.close(); p.wait()
+sys.exit(0 if ok else 1)' "$here/lib/backup-progress.py" "$pfile" || { echo "FAIL: the progress file should say 50 and the time while the backup runs"; fail=1; }
 
 # --- restore ------------------------------------------------------------------
 echo "changed" > "$HOME/Documents/notes.txt"
@@ -162,16 +197,20 @@ check "the menu's Back up now should back up and say so: $(cat "$t/notes" 2>/dev
 # --- the bar's words (vikix-backup-text, from commands.lisp) ---------------------
 if command -v sbcl >/dev/null; then
   fn=$(awk '/^\(defun vikix-backup-text/,/^$/' "$here/config/stumpwm/vikix/commands.lisp")
+  pfn=$(awk '/^\(defun vikix-backup-progress-text/,/^$/' "$here/config/stumpwm/vikix/commands.lisp")
   words=$(sbcl --noinform --no-sysinit --no-userinit --non-interactive \
-    --eval "$fn" \
+    --eval "$fn" --eval "$pfn" \
     --eval '(let ((now 1800000000))
-              (format t "~s ~s ~s ~s ~s~%"
+              (format t "~s ~s ~s ~s ~s ~s ~s ~s~%"
                 (vikix-backup-text nil 7 now) (vikix-backup-text 0 7 now)
                 (vikix-backup-text (- now (* 3 86400)) 7 now)
                 (vikix-backup-text (- now (* 9 86400)) 7 now)
-                (vikix-backup-text (- now (* 7 86400)) 7 now)))' 2>&1 | tail -1)
+                (vikix-backup-text (- now (* 7 86400)) 7 now)
+                (vikix-backup-progress-text 42 (- now 5) now)
+                (vikix-backup-progress-text 42 (- now 120) now)
+                (vikix-backup-progress-text nil nil now)))' 2>&1 | tail -1)
   check "the bar's reminder words are wrong: $words" \
-    test "$words" = '"" "backup" "" "backup 9d" "backup 7d"'
+    test "$words" = '"" "backup" "" "backup 9d" "backup 7d" "backup 42%" "" ""'
 fi
 
 [ "$fail" = 0 ] && echo "backup: setup (a place, or the drive plugged in), backup without the left-out folders, restore beside the original, the password card, doctor's lines, the bar's menu and its reminder"
