@@ -100,7 +100,7 @@ check "the notification should carry dunst's bar and be replaced, not added: $(c
 printf '{"message_type":"status","percent_done":0.5,"total_bytes":10,"bytes_done":5}\n' |
   python3 -c '
 import subprocess, sys, time
-p = subprocess.Popen([sys.argv[1], "--progress", sys.argv[2]], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+p = subprocess.Popen([sys.executable, sys.argv[1], "--progress", sys.argv[2]], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
 p.stdin.write(sys.stdin.buffer.read()); p.stdin.flush()
 time.sleep(0.5)
 words = open(sys.argv[2]).read().split()
