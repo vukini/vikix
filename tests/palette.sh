@@ -19,7 +19,9 @@
 #   alacritty, rofi and Vikix's StumpWM): the desktop lists its windows on
 #   every workspace and its commands with their keys; through the real
 #   launcher, a window's name and Enter goes to it on another workspace, and
-#   a command's words and Enter runs it; Super+Space opens it.
+#   a command's words and Enter runs it; Super+Space opens it. Startup and
+#   sigil searches are deliberately delayed beyond the old sleeps: wait
+#   for this launch's window, completed script output and desktop result.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -29,8 +31,64 @@ export DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/vikix-test-bus   # never 
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 pids=()
-cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$t"; }
+cleanup() {
+  # Include rofi and its script workers, which StumpWM starts rather than
+  # this shell. Capture their descendants before ending any parent.
+  timeout --kill-after=2s 10s python3 - "$t" "${pids[@]}" <<'PYCLEAN'
+from pathlib import Path
+import os
+import signal
+import sys
+import time
+folder = Path(sys.argv[1])
+roots = {int(p) for p in sys.argv[2:]}
+for note in (folder / 'palette-state').glob('*.process'):
+    try:
+        pid = int(note.stem)
+        if str(folder).encode() in Path(f'/proc/{pid}/cmdline').read_bytes():
+            roots.add(pid)
+    except (OSError, ValueError):
+        pass
+parents = {}
+for path in Path('/proc').iterdir():
+    if not path.name.isdigit():
+        continue
+    try:
+        stat = (path / 'stat').read_text()
+        parents[int(path.name)] = int(stat[stat.rindex(')') + 2:].split()[1])
+    except (OSError, ValueError):
+        pass
+owned = set(roots)
+while True:
+    more = {pid for pid, parent in parents.items() if parent in owned} - owned
+    if not more:
+        break
+    owned.update(more)
+def alive(pid):
+    try:
+        stat = Path(f'/proc/{pid}/stat').read_text()
+        return stat[stat.rindex(')') + 2:].split()[0] != 'Z'
+    except OSError:
+        return False
+for sig in (signal.SIGTERM, signal.SIGKILL):
+    for pid in owned:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+    end = time.monotonic() + 2
+    while any(alive(pid) for pid in owned) and time.monotonic() < end:
+        time.sleep(.05)
+left = [pid for pid in owned if alive(pid)]
+if left:
+    sys.exit(f'palette cleanup: processes still alive: {left}')
+PYCLEAN
+  for p in "${pids[@]}"; do wait "$p" 2>/dev/null || true; done
+  rm -rf "$t"
+}
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 said=()
@@ -197,12 +255,63 @@ on_screen() {
   touch "$home/.local/state/vikix/welcome"
   # The key runs "vikix-palette" from PATH: this checkout's.
   ln -s "$here/bin/vikix-palette" "$t/path/vikix-palette"
+  local real_rofi; real_rofi=$(command -v rofi)
+  mkdir -p "$t/palette-state"
+  export PALETTE_TEST_STATE="$t/palette-state" PALETTE_TEST_REAL_ROFI="$real_rofi"
+  export PALETTE_TEST_REAL_PALETTE="$here/bin/vikix-palette"
+  export PALETTE_TEST_START_DELAY=${PALETTE_TEST_START_DELAY:-3}
+  export PALETTE_TEST_SEARCH_DELAY=${PALETTE_TEST_SEARCH_DELAY:-8}
+  # Observe the real script mode, preserving its bytes, and make a slow
+  # search deterministic. The real launcher, rofi and desktop still run.
+  cat > "$t/path/palette-mode" <<'PYMODE'
+#!/usr/bin/env python3
+from pathlib import Path
+import os
+import subprocess
+import sys
+import time
+state = Path(os.environ['PALETTE_TEST_STATE'])
+pid = os.environ['PALETTE_TEST_PID']
+(state / f'{os.getpid()}.process').touch()
+query = sys.argv[2] if len(sys.argv) > 2 else ''
+stage = 'search' if query.startswith('>') and not os.environ.get('ROFI_INFO') else 'initial'
+(state / f'{pid}.{stage}.worker').write_text(str(os.getpid()))
+if stage == 'search':
+    time.sleep(float(os.environ['PALETTE_TEST_SEARCH_DELAY']))
+result = subprocess.run([sys.executable, os.environ['PALETTE_TEST_REAL_PALETTE'], *sys.argv[1:]],
+                        capture_output=True, timeout=30)
+(state / f'{pid}.{stage}.output').write_bytes(result.stdout)
+sys.stdout.buffer.write(result.stdout)
+sys.stdout.buffer.flush()
+sys.stderr.buffer.write(result.stderr)
+(state / f'{pid}.{stage}.ready').write_text(str(result.returncode))
+sys.exit(result.returncode)
+PYMODE
+  cat > "$t/path/rofi" <<'PYROFI'
+#!/usr/bin/env python3
+from pathlib import Path
+import os
+import sys
+import time
+state = Path(os.environ['PALETTE_TEST_STATE'])
+pid = str(os.getpid())
+os.environ['PALETTE_TEST_PID'] = pid
+(state / f'{pid}.process').touch()
+(state / 'pid').write_text(pid)
+args = sys.argv[1:]
+at = args.index('-modes') + 1
+args[at] = args[at].replace(os.environ['PALETTE_TEST_REAL_PALETTE'] + ' --rofi',
+                          str(Path(__file__).with_name('palette-mode')) + ' --rofi')
+time.sleep(float(os.environ['PALETTE_TEST_START_DELAY']))
+os.execv(os.environ['PALETTE_TEST_REAL_ROFI'], [os.environ['PALETTE_TEST_REAL_ROFI'], *args])
+PYROFI
+  chmod +x "$t/path/rofi" "$t/path/palette-mode"
   printf '#!/bin/sh\nexit 0\n' > "$t/path/notify-send"; printf '#!/bin/sh\n[ "$1" = is-paused ] && echo false\nexit 0\n' > "$t/path/dunstctl"
   chmod +x "$t/path/notify-send" "$t/path/dunstctl"
   for _ in $(seq 1 30); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
   PATH="$t/path:$PATH" HOME=$home VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
   pids+=($!)
-  ask() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" "(progn (setf *print-pretty* nil) $1)" 2>&1 | grep -v '^=> ' || true; }
+  ask() { HOME=$home VIKIX_SWANK_PORT=$port timeout --kill-after=1s 4s python3 "$here/bin/vikix-eval" "(progn (setf *print-pretty* nil) $1)" 2>&1 | grep -v '^=> ' || true; }
   local until=$((SECONDS + 60)); while [ "$SECONDS" -lt "$until" ]; do [ "$(ask '(princ 1)')" = 1 ] && break; sleep 0.5; done
   [ "$(ask '(princ 1)')" = 1 ] || { echo "FAIL: the test StumpWM didn't start"; fail=1; return 0; }
   win() {
@@ -215,9 +324,50 @@ on_screen() {
     sleep 0.3
   }
   in_front() { ask '(princ (list (group-number (current-group)) (and (current-window) (window-title (current-window)))))'; }
-  box() {   # box WORDS: the palette, WORDS typed, Enter
-    xdotool key super+space
-    sleep 2.5; xdotool type --delay 40 "$1"; sleep 0.8; xdotool key Return; sleep 2
+  wait_until() {
+    local what=$1; shift
+    local end=$((SECONDS + 20))
+    while [ "$SECONDS" -lt "$end" ]; do
+      "$@" && return 0
+      sleep 0.1
+    done
+    echo "FAIL: timed out waiting for $what"; fail=1
+    tail -12 "$t/wm.log"
+    return 1
+  }
+  local palette_pid
+  palette_ready() {
+    local stage=$1 worker
+    [ -f "$t/palette-state/pid" ] || return 1
+    palette_pid=$(cat "$t/palette-state/pid")
+    [ "$(cat "$t/palette-state/$palette_pid.$stage.ready" 2>/dev/null)" = 0 ] || return 1
+    grep -aqF 'Gaps around windows' "$t/palette-state/$palette_pid.$stage.output" || return 1
+    worker=$(cat "$t/palette-state/$palette_pid.$stage.worker")
+    # EOF and the worker's exit come before rofi can accept the next pick.
+    ! kill -0 "$worker" 2>/dev/null || return 1
+    timeout --kill-after=1s 2s xdotool search --onlyvisible --pid "$palette_pid" --class Rofi >/dev/null 2>&1
+  }
+  palette_closed() {
+    local status=0
+    timeout --kill-after=1s 2s xdotool search --onlyvisible --pid "$palette_pid" --class Rofi >/dev/null 2>&1 || status=$?
+    [ "$status" = 1 ]   # a timed-out X query is not evidence of a closed window
+  }
+  palette_open() {
+    rm -f "$t/palette-state/pid"
+    xdotool key --clearmodifiers super+space
+    wait_until "this palette's mapped window and initial rows" palette_ready initial
+  }
+  box() {   # box WORDS: type only once this launch's rows have arrived.
+    palette_open || return 1
+    xdotool type --clearmodifiers --delay 40 "$1"
+    xdotool key Return
+    wait_until "this palette to close after its pick" palette_closed
+  }
+  front_is() { [ "$(in_front)" = "$1" ]; }
+  gaps_changed() {
+    local now
+    now=$(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')
+    case $now in T|NIL) [ "$now" != "$gaps" ] ;; *) return 1 ;; esac
   }
   win Alphawin
   ask '(switch-to-group (find 2 (screen-groups (current-screen)) :key (function group-number)))' >/dev/null
@@ -226,21 +376,28 @@ on_screen() {
   check "the desktop lists its windows on every workspace: $(grep -c 'window' <<<"$listed")" bash -c "grep -qx 'Alphawin  ·  window on 1 · palettetest' <<<\"\$1\" && grep -qx 'Bravowin  ·  this window' <<<\"\$1\"" _ "$listed"
   check "and its commands, with their keys" grep -qx 'Gaps around windows on/off  ·  command · Super+Ctrl+g' <<<"$listed"
   check "it doesn't offer itself" test -z "$(grep -i 'everything in one box' <<<"$listed" || true)"
-  box Alphawin
+  box Alphawin || return 0
+  wait_until "Alphawin on workspace 1" front_is "(1 Alphawin)" || return 0
   check "Super+Space, a window's name, Enter: you are at it, on its workspace: $(in_front)" test "$(in_front)" = "(1 Alphawin)"
   local gaps; gaps=$(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')
-  box "Gaps around"
+  box "Gaps around" || return 0
+  wait_until "the gaps command's result" gaps_changed || return 0
   check "a command's words, Enter: it runs: gaps were $gaps, are $(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')" \
     test "$(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')" != "$gaps"
   listed=$(HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-palette" --list '>power')
   check "> asks the desktop for the menu's entries, with their sections: $(head -2 <<<"$listed" | tr '\n' '|')" grep -q '  ·  menu · Power' <<<"$listed"
   gaps=$(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')
-  xdotool key super+space; sleep 2.5; xdotool type --delay 40 '>gaps'; sleep 0.8; xdotool key Return; sleep 2.5
-  xdotool type --delay 40 'Gaps around'; sleep 0.8; xdotool key Return; sleep 2
+  palette_open || return 0
+  xdotool type --clearmodifiers --delay 40 '>gaps'; xdotool key Return
+  wait_until "the delayed >gaps search results" palette_ready search || return 0
+  xdotool key --clearmodifiers ctrl+a
+  xdotool type --clearmodifiers --delay 40 'Gaps around'; xdotool key Return
+  wait_until "the search hit to close its palette" palette_closed || return 0
+  wait_until "the search hit's gaps command result" gaps_changed || return 0
   check "Super+Space, >gaps, Enter, then the hit, Enter: the command runs: gaps were $gaps, are $(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')" \
     test "$(ask '(princ (symbol-value (find-symbol "*GAPS-ON*" :swm-gaps)))')" != "$gaps"
   check "nothing failed on the way" test -z "$(ls "$home/.local/state/vikix/errors/" 2>/dev/null)"
-  [ "$fail" = 0 ] && said+=("and through the real launcher: a window on another workspace, a command, a > search then its hit")
+  [ "$fail" = 0 ] && said+=("and through the real launcher (startup delay ${PALETTE_TEST_START_DELAY}s, search delay ${PALETTE_TEST_SEARCH_DELAY}s): a window on another workspace, a command, a > search then its hit")
   return 0
 }
 on_screen
