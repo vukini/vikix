@@ -38,7 +38,8 @@ kunhavita de la procesoro kaj la grafika karto, 13,4-cola 2560×1600 tuŝekrano.
 | Suspensigo | Moderna atenta reĝimo (`s2idle`) nur. Premitaj ŝlosoj dum dormo ne vekis ĝin (provita 2026-10-19), do ne bezonas suspendigan kaptopunton en ĉi tiu kerno |
 | Akumulatoro kaj ŝargado | Vidata (BAT0, du USB-C-fontoj) |
 | Ventililo kaj energiaj reĝimoj | La kerno ofertas `quiet`, `balanced` kaj `performance` en `/sys/firmware/acpi/platform_profile`; Void ne havas asusctl. Elekto de Super+m estas TODO 63 |
-| SD-legilo, USB4 | Ŝoforoj ligitaj; ankoraŭ ne provita |
+| USB4 | Funkcias: Corsair EX400U SSD (20 Gb/s) estas aŭtorizita kiam ĝi alvenas kaj muntiĝas kiel memorbastono, per la Thunderbolt-regulo de udev (`55-hardware`, vidu "USB drives" en la README). Antaŭ la regulo la disko tute ne aperis: USB4-SSD ne estas USB-memoro, kaj la kerno lasas novan Thunderbolt-aparaton atendi permeson |
+| SD-legilo | Ŝoforo ligita; ankoraŭ ne provita |
 | NPU (AMD XDNA) | Neniu ŝoforo ligita en 6.18; nenio en Vikix uzas ĝin |
 | Fingruĵdetektilo | Neniu en ĉi tiu modelo |
 

@@ -162,6 +162,7 @@ for f in "${files[@]}"; do
     docs/*|lib/md2texi.py|lib/build-guide.sh) add info docs-open docs ;;   # the catalogue (vikix docs) reads the guides too
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
+    config/udev/*.rules) add drives ;;   # the Thunderbolt drives rule, read by tests/drives.sh
     site/*) add lint ;;
     cuis/*) add cuis ;;   # Vikix's Smalltalk
     # The office's front and its parts: their tests are named below (fifteen

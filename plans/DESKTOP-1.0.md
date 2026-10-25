@@ -59,7 +59,7 @@ Dependencies: none. This gate comes before increasing unattended agent autonomy.
 Can proceed alongside B/C after A's baseline is in place.
 
 - [ ] Clean-install and upgrade tests on both X1 and Zog via the documented path; publish and verify a versioned install image (TODO 20).
-- [ ] Finish Z13 real-world checks: rotation, sound ceiling, Bluetooth, camera, SD, USB4, suspend/resume and power profile (TODO 59/63). Record explicit pass/fail instead of assuming support.
+- [ ] Finish Z13 real-world checks: rotation, sound ceiling, Bluetooth, camera, SD, suspend/resume and power profile (TODO 59/63; USB4 passed 2026-10-25 with a Corsair EX400U SSD, once udev's Thunderbolt rule authorized it). Record explicit pass/fail instead of assuming support.
 - [ ] Recovery rehearsal for user documents and machine configuration (TODO 80, backup/setup and restore interface).
 - [ ] Test daily use for **30 consecutive days** with no critical unrecoverable failure; record updates, battery/suspend faults and regressions in a log, and restart the observation window after a critical failure.
 - [ ] Bound runaway logs, journals and stores (TODO 96); monitor responsiveness and battery impacts against measured baselines.

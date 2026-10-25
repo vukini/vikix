@@ -43,6 +43,29 @@ else
   fi
 fi
 
+# --- USB4 and Thunderbolt drives (udev) --------------------------------------
+# A USB4 SSD comes through Thunderbolt and waits, showing no disk, to be
+# authorized; the rule does that as it arrives when the IOMMU protects
+# memory, and tells udisks the disk behind it is a drive to mount (it calls
+# a PCIe disk a system drive, and udiskie leaves those). Reloaded at once,
+# and a drive waiting already gets its add event again; a disk already
+# there is told its new standing with a change event.
+rule=/etc/udev/rules.d/70-vikix-thunderbolt.rules
+if cmp -s "$VIKIX_DIR/config/udev/70-vikix-thunderbolt.rules" "$rule"; then
+  say "udev's Thunderbolt drives rule already in place"
+else
+  say "installing udev's Thunderbolt drives rule (a USB4 SSD authorized and mounted like a stick)"
+  run sudo install -Dm644 "$VIKIX_DIR/config/udev/70-vikix-thunderbolt.rules" "$rule"
+  run sudo udevadm control --reload
+  if [ -d /sys/bus/thunderbolt/devices ]; then
+    run sudo udevadm trigger --subsystem-match=thunderbolt --action=add
+  fi
+  for removable in /sys/bus/pci/devices/*/removable; do
+    [ -f "$removable" ] && [ "$(cat "$removable")" = removable ] || continue
+    run sudo udevadm trigger --subsystem-match=block --parent-match="${removable%/removable}" --action=change
+  done
+fi
+
 # --- microcode in the initramfs --------------------------------------------
 if grep -q GenuineIntel /proc/cpuinfo 2>/dev/null && pkg_installed intel-ucode; then
   ucode=$(xbps-query -p pkgver intel-ucode)

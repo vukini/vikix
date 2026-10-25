@@ -324,6 +324,14 @@ EOF
     if [ -n "$cfg" ]; then warn "Codex: $cfg"; ok=0
     else say "Codex's config.toml has no setting under a header it doesn't read"; fi
   fi
+  # A USB4 SSD waits, showing no disk, until its Thunderbolt device is
+  # authorized; udev's rule does it when the IOMMU protects memory, and
+  # leaves the rest to the user's word.
+  local waiting_drives
+  waiting_drives=$("$VIKIX_DIR/bin/vikix-drives" waiting 2>/dev/null | paste -sd, - || true)
+  if [ -n "$waiting_drives" ]; then
+    warn "a Thunderbolt drive is waiting to be authorized, so its disk doesn't show: $waiting_drives (vikix-drives trust)"; ok=0
+  fi
   if [ -n "${DISPLAY:-}" ]; then
     if pgrep -x udiskie >/dev/null 2>&1; then
       say "udiskie is running: USB drives mount when plugged in"

@@ -1,0 +1,19 @@
+# Vikix: USB4 and Thunderbolt drives. install/55-hardware puts this file in
+# /etc/udev/rules.d; the user's guide is README.md, "USB drives".
+#
+# A USB4 SSD doesn't attach as USB storage: it comes through Thunderbolt,
+# and the kernel's usual security level ("user") leaves every new device
+# unauthorized until someone writes 1 to its authorized file. Until then no
+# disk appears, nothing mounts, and lsusb shows nothing: the drive looks
+# dead. With the IOMMU keeping the device out of memory it wasn't given
+# (the domain's iommu_dma_protection, which every recent laptop has),
+# authorizing it is safe, so it is done here as the device arrives. On a
+# machine without that protection the device is left waiting, and told:
+# vikix-drives waiting names it, vikix-drives trust authorizes it.
+ACTION=="add", SUBSYSTEM=="thunderbolt", ENV{DEVTYPE}=="thunderbolt_device", ATTR{authorized}=="0", ATTRS{iommu_dma_protection}=="1", ATTR{authorized}="1"
+
+# The disk behind it sits on PCIe, so udisks calls it a system drive and
+# udiskie leaves it unmounted. The kernel marks a PCI device behind an
+# external port "removable" (its removable attribute; an internal disk has
+# none), and such a disk is a drive to plug in and pull out like a stick.
+SUBSYSTEM=="block", ATTRS{removable}=="removable", ENV{UDISKS_SYSTEM}="0"

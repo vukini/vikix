@@ -11,20 +11,32 @@
 #                           safe to pull out
 #   vikix-drives list       the mounted drives, one mount folder per line
 #   vikix-drives bar        "usb" while a drive is mounted, for the bar
+#   vikix-drives waiting    the USB4 (Thunderbolt) drives plugged in that wait
+#                           to be authorized, a name a line: such a drive
+#                           shows no disk until then. udev's rule
+#                           (config/udev/70-vikix-thunderbolt.rules) authorizes
+#                           one as it arrives when the IOMMU protects memory;
+#                           the bar's round tells you of one left waiting
+#   vikix-drives trust [NAME]  authorize the waiting drives, or the one named
+#                           (sudo asks): the disk appears and mounts by itself
 #
 # udiskie calls back for two things: `password DEVICE` (the rofi prompt)
 # and `event EVENT MOUNT_PATH`. On a mount, if it's the drive `vikix backup
 # setup` chose and a backup is due, the backup starts by itself.
 #
-# Drives are what udisks mounts for you, under /run/media/$USER.
+# Drives are what udisks mounts for you, under /run/media/$USER. A USB4 SSD
+# is one too, once its Thunderbolt device is authorized: without the rule it
+# looked dead (no disk, nothing in lsusb), since it isn't USB storage at all.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 MOUNTS=${VIKIX_MOUNTS:-/proc/mounts}              # a test can point these elsewhere
 MEDIA=${VIKIX_MEDIA:-/run/media/$USER}
 BACKUP=${VIKIX_DRIVES_BACKUP:-$VIKIX_DIR/bin/vikix-backup}
+SYS=${VIKIX_SYS:-/sys}                                # a test's made-up /sys
 config="${XDG_CONFIG_HOME:-$HOME/.config}/vikix"
 state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+told="$state/drives-told"                             # the waiting drives told of
 
 notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a Vikix "$@" || true; }
 
@@ -38,8 +50,63 @@ list() {
   done < "$MOUNTS"
 }
 
+# A USB4 drive comes through Thunderbolt and waits, unauthorized, for a 1 in
+# its authorized file; udev's rule writes it when the IOMMU protects memory.
+# What still waits, "PATH<tab>NAME" a line. The host's own entries (no
+# device_name) and the retimers aren't drives.
+waiting_paths() {
+  local d name
+  for d in "$SYS"/bus/thunderbolt/devices/*/; do
+    d=${d%/}
+    [ -f "$d/authorized" ] && [ -s "$d/device_name" ] || continue
+    [ "$(cat "$d/authorized")" = 0 ] || continue
+    name="$(cat "$d/vendor_name" 2>/dev/null || true) $(cat "$d/device_name")"
+    printf '%s\t%s\n' "$d" "${name# }"
+  done
+}
+waiting() { waiting_paths | cut -f2; }
+
+# The rule left this drive waiting on purpose (no DMA protection), so the
+# 1 is written on the user's word, as root.
+trust() {
+  local want=${1:-} path name any=''
+  while IFS=$'\t' read -r path name; do
+    [ -z "$want" ] || [ "$name" = "$want" ] || continue
+    any=1
+    if sudo sh -c "echo 1 > '$path/authorized'"; then
+      echo "$name is authorized: its disk appears in a moment and mounts by itself"
+    else
+      echo "couldn't authorize $name ($path/authorized)" >&2
+      return 1
+    fi
+  done < <(waiting_paths)
+  if [ -z "$any" ]; then
+    echo "no Thunderbolt drive is waiting${want:+ as $want} (vikix-drives waiting lists them)" >&2
+    return 1
+  fi
+}
+
+# Told once per drive while it waits: the ids told are kept and dropped when
+# the drive is gone or authorized, so the next plug tells again.
+tell_waiting() {
+  local path name id before now=()
+  before=$(cat "$told" 2>/dev/null || true)
+  while IFS=$'\t' read -r path name; do
+    id=$(cat "$path/unique_id" 2>/dev/null || echo "$name")
+    now+=("$id")
+    grep -qxF "$id" <<<"$before" && continue
+    notify -u normal "$name is waiting to be trusted" \
+      "A Thunderbolt drive shows no disk until it's authorized. In a terminal: vikix-drives trust"
+  done < <(waiting_paths)
+  if [ ${#now[@]} -gt 0 ]; then
+    mkdir -p "$state"; printf '%s\n' "${now[@]}" > "$told"
+  else
+    rm -f "$told"
+  fi
+}
+
 # The bar reads this every 10 seconds; an event also asks it to look now.
-bar() { [ -n "$(list)" ] && echo usb || true; }
+bar() { tell_waiting; [ -n "$(list)" ] && echo usb || true; }
 nudge_bar() {
   ( python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-usb-refresh)' >/dev/null 2>&1 & ) || true
 }
@@ -117,7 +184,9 @@ case ${1:-} in
   eject)    eject ;;
   list)     list ;;
   bar)      bar ;;
+  waiting)  waiting ;;
+  trust)    shift; trust "$@" ;;
   password) shift; password "$@" ;;
   event)    shift; event "$@" ;;
-  *) echo "usage: vikix-drives start | eject | list | bar" >&2; exit 2 ;;
+  *) echo "usage: vikix-drives start | eject | list | bar | waiting | trust [NAME]" >&2; exit 2 ;;
 esac

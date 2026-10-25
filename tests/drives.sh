@@ -5,8 +5,9 @@
 # udiskie Vikix's settings unless you have your own.
 #
 # Everything that would touch the desktop is a stand-in: rofi, udiskie,
-# udiskie-umount, notify-send, pgrep, and python3 (the bar's nudge goes
-# through vikix-eval to the running StumpWM). The backup is a stand-in too.
+# udiskie-umount, notify-send, pgrep, sudo, and python3 (the bar's nudge goes
+# through vikix-eval to the running StumpWM). The backup is a stand-in too,
+# and /sys is made up for the USB4 drive waiting to be authorized.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -89,5 +90,35 @@ mkdir -p "$t/home/.config/udiskie"; : > "$t/home/.config/udiskie/config.yml"
 drives start
 check "your own udiskie config should be used instead" test -z "$(grep -- '--config' "$log" || true)"
 
-[ "$fail" = 0 ] && echo "drives: listed, ejected safely, backed up on plug-in only when due; udiskie gets Vikix's settings"
+# --- USB4 drives waiting to be authorized ------------------------------------------
+# A made-up /sys: the host's own entry, a retimer, and a Corsair SSD waiting.
+sys="$t/sys/bus/thunderbolt/devices"
+mkdir -p "$sys/0-0" "$sys/1-0" "$sys/1-2" "$sys/1-2:1.1"
+echo 1 > "$sys/0-0/authorized"; echo 1 > "$sys/1-0/authorized"
+echo 0 > "$sys/1-2/authorized"; echo EX400U > "$sys/1-2/device_name"; echo Corsair > "$sys/1-2/vendor_name"
+echo 00001c1b-a000-440d-ffff-ffffffffffff > "$sys/1-2/unique_id"
+export VIKIX_SYS="$t/sys"
+stub sudo 'exec "$@"'
+check "the waiting drive should be named" test "$(drives waiting)" = "Corsair EX400U"
+drives bar >/dev/null
+check "the bar's round should tell of a drive waiting" grep -q 'notify .*Corsair EX400U is waiting' "$log"
+drives bar >/dev/null
+check "and not tell twice" test -z "$(grep 'is waiting' "$log" || true)"
+out=$(drives trust Nobody 2>&1 || true)
+check "trusting a drive that isn't waiting should say so: $out" grep -q 'no Thunderbolt drive is waiting' <<<"$out"
+out=$(drives trust 2>&1)
+check "trust should write the 1" test "$(cat "$sys/1-2/authorized")" = 1
+check "and say the disk is coming: $out" grep -q 'EX400U is authorized' <<<"$out"
+check "nothing should wait after" test -z "$(drives waiting)"
+drives bar >/dev/null
+echo 0 > "$sys/1-2/authorized"
+drives bar >/dev/null
+check "plugged in again, it should be told again" grep -q 'is waiting' "$log"
+unset VIKIX_SYS
+rule="$here/config/udev/70-vikix-thunderbolt.rules"
+check "the rule should authorize only with DMA protection" grep -q 'ATTRS{iommu_dma_protection}=="1", ATTR{authorized}="1"' "$rule"
+check "and make the disk behind it a drive to mount" grep -q 'ATTRS{removable}=="removable", ENV{UDISKS_SYSTEM}="0"' "$rule"
+check "the stage should install the rule" grep -q '70-vikix-thunderbolt.rules' "$here/install/55-hardware.sh"
+
+[ "$fail" = 0 ] && echo "drives: listed, ejected safely, backed up on plug-in only when due; udiskie gets Vikix's settings; a USB4 drive waiting is told of once and trusted on your word"
 exit "$fail"

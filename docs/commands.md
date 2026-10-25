@@ -556,10 +556,12 @@ USB drives: mounted when plugged in, ejected from a menu.
 - `vikix-drives eject` — pick a mounted drive in rofi (Super+Ctrl+e, or Super+m, Eject a drive); it is unmounted and powered off, and a notification says when it's safe to pull out
 - `vikix-drives list` — the mounted drives, one mount folder per line
 - `vikix-drives bar` — "usb" while a drive is mounted, for the bar
+- `vikix-drives waiting` — the USB4 (Thunderbolt) drives plugged in that wait to be authorized, a name a line: such a drive shows no disk until then. udev's rule (config/udev/70-vikix-thunderbolt.rules) authorizes one as it arrives when the IOMMU protects memory; the bar's round tells you of one left waiting
+- `vikix-drives trust [NAME]` — authorize the waiting drives, or the one named (sudo asks): the disk appears and mounts by itself
 
 udiskie calls back for two things: `password DEVICE` (the rofi prompt) and `event EVENT MOUNT_PATH`. On a mount, if it's the drive `vikix backup setup` chose and a backup is due, the backup starts by itself.
 
-Drives are what udisks mounts for you, under /run/media/$USER.
+Drives are what udisks mounts for you, under /run/media/$USER. A USB4 SSD is one too, once its Thunderbolt device is authorized: without the rule it looked dead (no disk, nothing in lsusb), since it isn't USB storage at all.
 
 ## vikix-dropbox
 

@@ -59,7 +59,8 @@ shared by the processor and the graphics, a 13.4-inch 2560×1600 touch screen.
 | Suspend | Modern standby (`s2idle`) only. Keys pressed while asleep did not wake it (tried 2026-10-19), so no sleep hook is needed on this kernel |
 | Battery and charging | Seen (BAT0, two USB-C sources) |
 | Fan and power modes | The kernel offers `quiet`, `balanced` and `performance` in `/sys/firmware/acpi/platform_profile`; Void has no asusctl. Choose from Super+m → System → Power profile, or `vikix power set PROFILE` |
-| SD reader, USB4 | Drivers bound; not tried yet |
+| USB4 | Works: a Corsair EX400U SSD (20 Gb/s) is authorized as it arrives and mounts like a stick, through udev's Thunderbolt rule (`55-hardware`, see the README's "USB drives"). Before the rule the drive showed no disk at all: a USB4 SSD isn't USB storage, and the kernel leaves a new Thunderbolt device waiting for an OK |
+| SD reader | Driver bound; not tried yet |
 | NPU (AMD XDNA) | No driver bound in 6.18; nothing in Vikix uses it |
 | Fingerprint reader | None on this model |
 
