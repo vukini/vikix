@@ -58,6 +58,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-palette](#vikix-palette): everything in one box (Super+Space)
 - [vikix-pkg](#vikix-pkg): single programs, beyond the features
 - [vikix-plugin](#vikix-plugin): small additions to Vikix, from the vikix-plugins repo
+- [vikix-power](#vikix-power): select the machine's kernel power profile
 - [vikix-project](#vikix-project): your projects, each a folder with a log.md
 - [vikix-publish](#vikix-publish): books from Markdown
 - [vikix-record](#vikix-record): record the screen to a video, without sound
@@ -163,6 +164,7 @@ The everyday command.
 - `vikix versions PATH` — every version of a file or folder, from the backups and the snapshots, newest first (vikix versions --help)
 - `vikix restore PATH ID [--beside|--replace]` — bring one back beside the file as NAME (DATE).ext, or in its place through the Trash
 - `vikix backup [now]` — back up your home folder with restic (vikix backup help: setup, the drive plugged in; status, list, restore, check, card, doctor, off)
+- `vikix power [menu|set PROFILE]` — show or choose the kernel's power profile
 - `vikix firmware [update]` — firmware updates from LVFS (BIOS, Thunderbolt, ...): what's waiting, or install it (on AC power)
 - `vikix fingerprint [on|off|enrol]` — a finger for sudo and the lock screen, where fprintd supports the reader
 - `vikix firewall [on|off|allow PORT|close PORT]` — the firewall (ufw): nothing comes in but SSH and the ports you allow
@@ -1169,6 +1171,16 @@ Small additions to Vikix, from the vikix-plugins repo.
 Small additions to Vikix, from the vikix-plugins repo (github.com/vukini/vikix-plugins) or from a repository of your own: a few words in the bar, Super+m entries, keys, a program started with the desktop.
 
 Vikix keeps the repo in `~/.local/share/vikix/plugins` at the commit pinned below, one it has checked: an update can't swap a plugin's code in silently. Your plugins are named in `~/.config/vikix/plugins.list`, your settings for each in `~/.config/vikix/plugins/NAME` (copied once, yours). A plugin from another repository is a line "NAME from REPO at COMMIT" there: the commit is yours to move (vikix plugin pin), its checkout is `~/.local/share/vikix/plugins-from/NAME`, and Vikix hasn't checked its code. A plugin's programs (its bin/) are linked into `~/.local/bin` while it's added, each with its man page (man inbox). Its Lisp runs inside StumpWM (plugins.lisp loads it).
+
+## vikix-power
+
+Select the machine's kernel power profile.
+
+- `vikix power` — show the current profile and available choices
+- `vikix power menu` — choose a supported profile in the desktop menu
+- `vikix power set PROFILE` — select a profile advertised by this machine
+
+Reads `/sys/firmware/acpi/platform_profile` and `platform_profile_choices`. Switching may ask for administrator authentication through the desktop's password box (pkexec). No service or passwordless policy is installed. The bar shows the selected profile; measured power, heat and fan speed depend on the machine and workload. The choice is not saved across boots.
 
 ## vikix-project
 

@@ -23,6 +23,22 @@ channels: the package `wireless-regdb` has the file, and it is in Vikix's
 base since 0.72.100 (`vikix update` brings it to a machine installed
 before).
 
+## Power profiles
+
+`vikix power` shows the current kernel profile and the profiles this machine supports. Choose one from **Super+m → System → Power profile**, or use:
+
+```sh
+vikix power set quiet
+vikix power set balanced
+vikix power set performance
+```
+
+Those three are offered by the Z13; other machines may offer different names, which the menu reads from the kernel. Unsupported choices are refused. Machines without this interface show no profile in the bar, and the command explains that the hardware does not expose it.
+
+The bar says `power quiet`, `power balanced` or `power performance` beside the battery, even when the battery is full. It reads the kernel each time the bar refreshes, so a change from another tool is reflected too. A click on the field opens its explanation.
+
+Switching may ask for administrator authentication in the desktop's password box (`pkexec`). Cancellation leaves the profile unchanged. Vikix installs no passwordless policy or background service, does not change profiles automatically on battery or AC, and does not save the choice across boots. `DRY_RUN=1 vikix power set quiet` prints the intended change. A profile is a firmware preference, not a promise of wattage, fan speed or performance; those depend on hardware, cooling and workload. See the [kernel's platform-profile documentation](https://docs.kernel.org/userspace-api/sysfs-platform_profile.html).
+
 ## ASUS ROG Flow Z13 (2025), GZ302EA
 
 Installed from Vikix's stick (0.72.97) on 2026-10-18: kernel 6.18.57,
@@ -42,7 +58,7 @@ shared by the processor and the graphics, a 13.4-inch 2560×1600 touch screen.
 | Keyboard and touchpad (detachable) | Work, with tap to click and natural scrolling from the base. F6 wears a "snip" picture but sends a plain F6 on Linux; Vikix makes it Print (udev's keys file, `55-hardware`, from 0.72.102), so F6 takes a screenshot, Shift+F6 keeps it as a file, Ctrl+F6 the window, Super+F6 the screen |
 | Suspend | Modern standby (`s2idle`) only. Keys pressed while asleep did not wake it (tried 2026-10-19), so no sleep hook is needed on this kernel |
 | Battery and charging | Seen (BAT0, two USB-C sources) |
-| Fan and power modes | The kernel offers `quiet`, `balanced` and `performance` in `/sys/firmware/acpi/platform_profile`; Void has no asusctl. A choice from Super+m is TODO 63 |
+| Fan and power modes | The kernel offers `quiet`, `balanced` and `performance` in `/sys/firmware/acpi/platform_profile`; Void has no asusctl. Choose from Super+m → System → Power profile, or `vikix power set PROFILE` |
 | SD reader, USB4 | Drivers bound; not tried yet |
 | NPU (AMD XDNA) | No driver bound in 6.18; nothing in Vikix uses it |
 | Fingerprint reader | None on this model |

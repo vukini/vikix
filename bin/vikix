@@ -200,6 +200,8 @@
 #   vikix backup [now]  back up your home folder with restic (vikix backup help:
 #                         setup, the drive plugged in; status, list, restore,
 #                         check, card, doctor, off)
+#   vikix power [menu|set PROFILE]
+#                            show or choose the kernel's power profile
 #   vikix firmware [update]   firmware updates from LVFS (BIOS, Thunderbolt, ...):
 #                         what's waiting, or install it (on AC power)
 #   vikix fingerprint [on|off|enrol]   a finger for sudo and the lock screen,
@@ -1159,6 +1161,7 @@ main() {
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
     versions)    shift; exec "$VIKIX_DIR/bin/vikix-versions" "$@" ;;
     restore)     shift; exec "$VIKIX_DIR/bin/vikix-versions" restore "$@" ;;
+    power)       shift; exec "$VIKIX_DIR/bin/vikix-power" "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
     vm|vms)      shift; exec "$VIKIX_DIR/bin/vikix-vm" "$@" ;;

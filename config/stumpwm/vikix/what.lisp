@@ -76,7 +76,8 @@ it is explained."
 (defun vikix-what-bt-text (ml) (declare (ignore ml)) *vikix-bt*)
 
 (defparameter *vikix-what-fields*
-  '(("music" . vikix-mode-line-music) ("battery" . vikix-mode-line-battery) ("network" . vikix-what-net-text)
+  '(("music" . vikix-mode-line-music) ("battery" . vikix-mode-line-battery-charge)
+    ("power-profile" . vikix-mode-line-power-profile) ("network" . vikix-what-net-text)
     ("bluetooth" . vikix-what-bt-text) ("volume" . vikix-mode-line-volume)
     ("memory" . vikix-mode-line-memory) ("updates" . vikix-mode-line-updates)
     ("backup" . vikix-mode-line-backup) ("drive" . vikix-mode-line-usb)

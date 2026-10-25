@@ -641,6 +641,8 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 
 ;;; The system: the network, sound, screens, printers, drives
 
+(define-vikix-command power-profile "Power profile: choose this machine's performance mode"
+  :run "exec vikix-power menu" :menu "System" :needs "vikix-power")
 (define-vikix-command wifi "Wi-Fi: pick a network (scans first)"
   :do (run-shell-command "vikix-wifi")
   :menu "System")

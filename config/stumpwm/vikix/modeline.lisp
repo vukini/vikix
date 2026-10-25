@@ -22,7 +22,7 @@
 ;;;;   %O   network: Wi-Fi as three bars and the network's name, wired, or offline
 ;;;;   %T   Bluetooth: bt when on, and the connected device (bin/vikix-bt)
 ;;;;   %V   volume (only when there is a sound server)
-;;;;   %E   battery: "bat 84%", "+" while charging; nothing when full on the charger
+;;;;   %E   selected power profile (when supported), then battery: "bat 84%", "+" while charging; nothing when full on the charger
 ;;;;   %d   date and time
 ;;;;
 ;;;; Colour carries one meaning each: alert for something watching you
@@ -44,7 +44,21 @@
           (with-open-file (in (merge-pathnames name battery))
             (string-trim '(#\Space #\Newline) (read-line in nil "")))))))
 
-(defun vikix-mode-line-battery (ml)
+(defparameter *vikix-power-profile-root* #p"/sys/firmware/acpi/")
+
+(defun vikix-mode-line-power-profile (ml)
+  "The kernel's selected profile, without running a program in the bar."
+  (declare (ignore ml))
+  (or (ignore-errors
+        (with-open-file (in (merge-pathnames "platform_profile" *vikix-power-profile-root*))
+          (let ((profile (string-trim '(#\Space #\Tab #\Newline) (read-line in nil ""))))
+            (when (and (plusp (length profile))
+                       (every (lambda (c) (or (find c "abcdefghijklmnopqrstuvwxyz0123456789")
+                                              (char= c #\-))) profile))
+              (vikix-ml-what "power-profile" (format nil "power ~a  " profile))))))
+      ""))
+
+(defun vikix-mode-line-battery-charge (ml)
   "The battery's charge, labelled like vol; nothing without a battery, or
 when it is full on the charger, since that isn't news."
   (declare (ignore ml))
@@ -55,6 +69,10 @@ when it is full on the charger, since that isn't news."
           (t (vikix-ml-what "battery"
                             (format nil "bat ~a%~a  " level
                                     (if (string= status "Charging") "+" "")))))))
+
+(defun vikix-mode-line-battery (ml)
+  (concatenate 'string (vikix-mode-line-power-profile ml)
+                      (vikix-mode-line-battery-charge ml)))
 
 ;;; The mouse, for when a key doesn't come to mind: a workspace's number
 ;;; in the bar goes there, and volume, the network and Bluetooth open their

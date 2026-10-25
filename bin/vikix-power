@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""vikix-power — select the machine's kernel power profile.
+
+  vikix power                 show the current profile and available choices
+  vikix power menu            choose a supported profile in the desktop menu
+  vikix power set PROFILE     select a profile advertised by this machine
+
+Reads /sys/firmware/acpi/platform_profile and platform_profile_choices.
+Switching may ask for administrator authentication through the desktop's
+password box (pkexec). No service or passwordless policy is installed.
+The bar shows the selected profile; measured power, heat and fan speed
+depend on the machine and workload. The choice is not saved across boots.
+"""
+
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+DEFAULT_ROOT = Path('/sys/firmware/acpi')
+ROOT = Path(os.environ.get('VIKIX_POWER_SYSFS', str(DEFAULT_ROOT)))
+
+
+def die(message):
+    print(f'vikix power: {message}', file=sys.stderr)
+    if sys.argv[1:] == ['menu'] and shutil.which('rofi'):
+        try:
+            subprocess.run(['rofi', '-e', message], timeout=120, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    raise SystemExit(1)
+
+
+def profiles():
+    try:
+        choices = (ROOT / 'platform_profile_choices').read_text().split()
+        current = (ROOT / 'platform_profile').read_text().strip()
+    except OSError:
+        die('this machine does not expose kernel power profiles')
+    if not choices or any(not re.fullmatch(r'[a-z][a-z0-9-]*', p) for p in choices):
+        die('the kernel returned no usable power-profile choices')
+    return current, choices
+
+
+def select(profile):
+    current, choices = profiles()
+    if profile not in choices:
+        die(f'unsupported profile {profile!r}; choose: {", ".join(choices)}')
+    if current == profile:
+        print(f'power: {profile} (already selected)')
+        return
+    if os.environ.get('DRY_RUN') == '1':
+        print(f'would select power profile: {profile}')
+        return
+    target = ROOT / 'platform_profile'
+    if os.access(target, os.W_OK):
+        try:
+            # Opening an existing sysfs attribute must never create a file.
+            with os.fdopen(os.open(target, os.O_WRONLY | os.O_TRUNC), 'w') as stream:
+                stream.write(profile + '\n')
+        except OSError as e:
+            die(f'could not select {profile}: {e}')
+    else:
+        # An override is for isolated tests/readers, never a root write target.
+        if ROOT != DEFAULT_ROOT:
+            die('cannot authenticate a write outside the kernel power-profile path')
+        pkexec = shutil.which('pkexec')
+        if not pkexec:
+            die('switching needs administrator authentication; pkexec is unavailable')
+        try:
+            result = subprocess.run([pkexec, '/usr/bin/tee', '--', str(target)],
+                                    input=profile + '\n', text=True, capture_output=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            die(f'could not authenticate the profile switch: {e}')
+        if result.returncode:
+            die('profile switch was cancelled or refused; no change confirmed')
+    actual, _ = profiles()
+    if actual != profile:
+        die(f'profile switch was not confirmed (kernel reports {actual!r})')
+    print(f'power: {actual}')
+
+
+def menu():
+    current, choices = profiles()
+    if not shutil.which('rofi'):
+        die('the desktop chooser needs rofi; use vikix power set PROFILE')
+    try:
+        result = subprocess.run(['rofi', '-dmenu', '-i', '-no-custom', '-p', 'Power profile',
+                                 '-selected-row', str(choices.index(current) if current in choices else 0)],
+                                input='\n'.join(choices) + '\n', text=True, capture_output=True)
+    except OSError as e:
+        die(f'could not open the profile chooser: {e}')
+    if result.returncode:
+        return
+    select(result.stdout.strip())
+
+
+def main():
+    args = sys.argv[1:]
+    if args in (['-h'], ['--help'], ['help']):
+        print(__doc__)
+    elif not args or args == ['status']:
+        current, choices = profiles()
+        print(f'power: {current}\navailable: {" ".join(choices)}')
+    elif args == ['menu']:
+        menu()
+    elif len(args) == 2 and args[0] == 'set':
+        select(args[1])
+    else:
+        die('use vikix power [menu|set PROFILE]')
+
+
+if __name__ == '__main__':
+    main()
