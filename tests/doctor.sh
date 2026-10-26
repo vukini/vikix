@@ -214,6 +214,29 @@ check "a try is said, not counted: $code: $out" test "$code" = 0
 check "naming the desk" grep -q ":: $v runs a desk's commit, $HOME/src/vikix-topic (vikix try status" <<<"$out"
 rm "$HOME/.local/state/vikix/try"; git -C "$v" checkout -q master 2>/dev/null || git -C "$v" checkout -q main
 
+echo "--- the night's tests"
+mkdir -p "$HOME/.local/state/vikix/tests"
+night() { printf '20261026-0330\tabc1234def\t0.72.199\t%s\t%s\t600\n' "$1" "$2" > "$HOME/.local/state/vikix/tests/night"; }
+night ok "130 tests passed"
+plain
+check "a night that passed is said, not a fault: $code: $out" test "$code" = 0
+check "with when, the commit and the count" grep -q ":: the night's tests passed (20261026-0330, abc1234, Vikix 0.72.199: 130 tests passed)" <<<"$out"
+night failed "palette docs"
+plain
+check "a night that failed is a fault: $code" test "$code" = 1
+check "naming the tests and the log: $out" grep -q "!! the night's tests failed (20261026-0330, abc1234, Vikix 0.72.199): palette docs (the log: $HOME/.local/state/vikix/tests/night-20261026-0330.log)" <<<"$out"
+night unsure "the runner ended well but never said all passed"
+plain
+check "a night unsure is a fault too, never green: $code" test "$code" = 1
+check "said as unsure" grep -q "!! the night's tests unsure (20261026-0330" <<<"$out"
+night not-run "the machine wasn't free: on battery"
+plain
+check "a night that couldn't run is said, not a fault: $code: $out" test "$code" = 0
+check "with why" grep -q ":: the night's tests didn't run (20261026-0330: the machine wasn't free: on battery)" <<<"$out"
+rm "$HOME/.local/state/vikix/tests/night"
+plain
+check "no night at all: nothing said: $out" no grep -q "night's tests" <<<"$out"
+
 echo "--- help, and a bad option"
 out=$(doc help) && code=0 || code=$?
 check "help prints the header: $code: $out" grep -q '^vikix-doctor — check the pieces' <<<"$out"

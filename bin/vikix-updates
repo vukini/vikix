@@ -10,14 +10,18 @@
 #                          the whole session
 #
 # The result goes to ~/.local/state/vikix/updates as "PACKAGES COMMITS
-# FIRMWARE TESTS", with ? for a count that couldn't be checked (offline,
-# say). TESTS is GitHub's verdict on the commit this machine runs: ok,
-# failed, running, ? when it couldn't be asked, or - on the good channel,
+# FIRMWARE TESTS NIGHT", with ? for a count that couldn't be checked
+# (offline, say). TESTS is GitHub's verdict on the commit this machine runs:
+# ok, failed, running, ? when it couldn't be asked, or - on the good channel,
 # where what runs has passed by definition. A machine on main takes every
 # commit before its tests, so the bar says "tests failed" when they do,
-# within ten minutes, and a notification says it once per commit. Checking
-# takes a few seconds of network, so it happens here, in the background,
-# and the bar only reads the file.
+# within ten minutes, and a notification says it once per commit. NIGHT is
+# the last night's run of the whole test set on the machine Vikix is
+# developed on (.claude/night-tests, ~/.local/state/vikix/tests/night): ok,
+# failed (it failed, was stopped, or ended without saying all passed), or -
+# when there is no such run or it couldn't run; the bar says "night tests
+# failed" until a night passes. Checking takes a few seconds of network, so
+# it happens here, in the background, and the bar only reads the file.
 
 state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
 out="$state/updates"
@@ -73,7 +77,11 @@ check() {
   else
     tests=-
   fi
-  echo "$packages $commits $firmware $tests" > "$out.tmp" && mv "$out.tmp" "$out"
+  # The night's tests, from their one line (when, commit, version, verdict,
+  # detail, seconds): anything that isn't ok or not-run didn't pass.
+  night=$(awk -F'\t' 'NR == 1 { print $4 }' "$state/tests/night" 2>/dev/null)
+  case $night in ok) ;; failed|stopped|unsure) night=failed ;; *) night=- ;; esac
+  echo "$packages $commits $firmware $tests $night" > "$out.tmp" && mv "$out.tmp" "$out"
 }
 
 # GitHub's verdict on the commit this checkout runs, from its public API
@@ -121,4 +129,4 @@ if [ "${1:-}" = --watch ]; then
 fi
 
 check
-echo "packages: $packages  Vikix commits: $commits  tests on this commit: $tests"
+echo "packages: $packages  Vikix commits: $commits  tests on this commit: $tests  the night's tests: $night"

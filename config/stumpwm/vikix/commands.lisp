@@ -830,19 +830,23 @@ when it's up to date, not installed, or never set up.")
   "What `vikix update` would bring, for the bar: \"updates 12\", \"updates
 12 + Vikix\", \"Vikix update\", or \"\" when there is nothing (or it
 couldn't be checked); \"tests failed\" in front when GitHub's tests failed
-on the commit this machine runs.")
+on the commit this machine runs, \"night tests failed\" when the night's run
+of the whole set on this machine didn't pass (.claude/night-tests).")
 
 (defparameter *vikix-updates-file*
   (merge-pathnames ".local/state/vikix/updates" (user-homedir-pathname))
   "Where bin/vikix-updates saves its counts: \"PACKAGES COMMITS FIRMWARE
-TESTS\", the last GitHub's verdict on the commit this machine runs.")
+TESTS NIGHT\", TESTS GitHub's verdict on the commit this machine runs, NIGHT
+the last night's run of the whole set on this machine.")
 
-(defun vikix-updates-text (packages commits &optional firmware tests)
+(defun vikix-updates-text (packages commits &optional firmware tests night)
   "The bar's words for PACKAGES, COMMITS and FIRMWARE (numbers, or NIL when
 unknown): \"updates 12 + Vikix + firmware\", or any part of it. TESTS is
 bin/vikix-updates' fourth word: \"failed\" puts \"tests failed\" in front,
 so a machine on the main channel sees a bad commit; the other words (ok,
-running, ?, -) add nothing."
+running, ?, -) add nothing. NIGHT is its fifth, the night's run of the whole
+set on this machine (.claude/night-tests): \"failed\" puts \"night tests
+failed\" in front the same way, the morning after."
   (let* ((p (and packages (plusp packages)))
          (c (and commits (plusp commits)))
          (f (and firmware (plusp firmware)))
@@ -853,9 +857,12 @@ running, ?, -) add nothing."
     (setf text (cond ((not f) text)
                      ((string= text "") "firmware")
                      (t (concatenate 'string text " + firmware"))))
-    (cond ((not (equal tests "failed")) text)
-          ((string= text "") "tests failed")
-          (t (concatenate 'string "tests failed  " text)))))
+    (setf text (cond ((not (equal tests "failed")) text)
+                     ((string= text "") "tests failed")
+                     (t (concatenate 'string "tests failed  " text))))
+    (cond ((not (equal night "failed")) text)
+          ((string= text "") "night tests failed")
+          (t (concatenate 'string "night tests failed  " text)))))
 
 (defun vikix-updates-refresh ()
   "Read bin/vikix-updates' file into *vikix-updates*; redraw the bar if it
@@ -867,7 +874,8 @@ changed. Reading a small file is cheap, so this runs with the others."
                (ignore-errors (parse-integer (first words)))
                (ignore-errors (parse-integer (second words)))
                (ignore-errors (parse-integer (third words)))
-               (fourth words))))
+               (fourth words)
+               (fifth words))))
     (unless (string= new *vikix-updates*)
       (setf *vikix-updates* new)
       (vikix-bar-redraw))))

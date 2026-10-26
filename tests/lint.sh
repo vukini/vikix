@@ -13,7 +13,7 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 cd "$(dirname "$0")/.."
 
 mapfile -t scripts < <(grep -lE '^#!.*(ba)?sh' install.sh install-*.sh install/*.sh \
-                         lib/common.sh migrations/*.sh bin/* tests/*.sh tests/lib/*.sh site/install \
+                         lib/common.sh migrations/*.sh bin/* tests/*.sh tests/lib/*.sh site/install .claude/night-tests \
                          installer/vikix-installer installer/vikix-hwreport installer/firstboot installer/build-image.sh)
 fail=0
 
@@ -44,7 +44,7 @@ fi
 
 # Scripts that are run as ./name must carry the executable bit (0.10.0
 # reached GitHub without it, and ./install-1.sh failed with "Permission denied").
-for f in install.sh install-*.sh install/*.sh bin/* tests/*.sh installer/vikix-installer installer/vikix-hwreport installer/firstboot installer/build-image.sh; do
+for f in install.sh install-*.sh install/*.sh bin/* tests/*.sh .claude/night-tests installer/vikix-installer installer/vikix-hwreport installer/firstboot installer/build-image.sh; do
   [ -x "$f" ] || { echo "FAIL not executable: $f"; fail=1; }
 done
 echo "executable bits checked"

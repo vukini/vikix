@@ -262,6 +262,18 @@ EOF
     rec=${recs[-1]}
     say "${#recs[@]} record(s) of the system before an update, the newest $(basename "$rec") (Vikix $(cat "$rec/version" 2>/dev/null || echo '?')): vikix update --back goes back to it (vikix rollback lists them)"
   fi
+  # The night's run of the whole test set, on the machine Vikix is developed
+  # on (.claude/night-tests): its one line, said either way, a night that
+  # didn't pass a fault, a night that couldn't run only said.
+  if [ -f "$VIKIX_STATE/tests/night" ]; then
+    local nwhen ncommit nversion nverdict ndetail
+    IFS=$'\t' read -r nwhen ncommit nversion nverdict ndetail _ < "$VIKIX_STATE/tests/night"
+    case $nverdict in
+      ok) say "the night's tests passed ($nwhen, ${ncommit:0:7}, Vikix $nversion: $ndetail)" ;;
+      not-run) say "the night's tests didn't run ($nwhen: $ndetail)" ;;
+      *) warn "the night's tests $nverdict ($nwhen, ${ncommit:0:7}, Vikix $nversion): $ndetail (the log: $VIKIX_STATE/tests/night-$nwhen.log)"; ok=0 ;;
+    esac
+  fi
   if [ -d "$VIKIX_DIR/.git" ] || [ -f "$VIKIX_DIR/.git" ]; then
     if git -C "$VIKIX_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then :
     elif [ -f "$VIKIX_STATE/try" ]; then

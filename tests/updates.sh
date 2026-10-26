@@ -47,17 +47,17 @@ counts() { PATH="$t/bin:$PATH" XDG_STATE_HOME="$t/state" XDG_CONFIG_HOME="$t/con
              sh "$t/vikix/bin/vikix-updates" >/dev/null; cat "$t/state/vikix/updates"; }
 
 fake_xbps 3
-[ "$(counts)" = "3 2 0 -" ] || { echo "FAIL: 3 packages and 2 commits read as: $(counts)"; fail=1; }
+[ "$(counts)" = "3 2 0 - -" ] || { echo "FAIL: 3 packages and 2 commits read as: $(counts)"; fail=1; }
 fake_xbps 0
-[ "$(counts)" = "0 2 0 -" ] || { echo "FAIL: no packages read as: $(counts)"; fail=1; }
+[ "$(counts)" = "0 2 0 - -" ] || { echo "FAIL: no packages read as: $(counts)"; fail=1; }
 fake_xbps fail
-[ "$(counts)" = "? 2 0 -" ] || { echo "FAIL: a failed package check read as: $(counts)"; fail=1; }
+[ "$(counts)" = "? 2 0 - -" ] || { echo "FAIL: a failed package check read as: $(counts)"; fail=1; }
 fake_xbps 0; fake_fwupd 2
-[ "$(counts)" = "0 2 2 -" ] || { echo "FAIL: 2 firmware updates read as: $(counts)"; fail=1; }
+[ "$(counts)" = "0 2 2 - -" ] || { echo "FAIL: 2 firmware updates read as: $(counts)"; fail=1; }
 fake_fwupd 0
 git -C "$t/vikix" remote set-url origin "$t/nowhere"
 fake_xbps 1
-[ "$(counts)" = "1 ? 0 -" ] || { echo "FAIL: an unreachable Vikix read as: $(counts)"; fail=1; }
+[ "$(counts)" = "1 ? 0 - -" ] || { echo "FAIL: an unreachable Vikix read as: $(counts)"; fail=1; }
 
 # An SSH remote is fetched over HTTPS: the check has no terminal, so a
 # key with a passphrase would otherwise always give ?.
@@ -86,16 +86,16 @@ SPY
 git -C "$t/vikix" remote set-url origin "$t/upstream"
 fake_xbps 0
 git -C "$t/upstream" tag -f good HEAD~1 >/dev/null
-[ "$(counts)" = "0 1 0 -" ] || { echo "FAIL: on the good channel the count should stop at the good tag (1): $(counts)"; fail=1; }
+[ "$(counts)" = "0 1 0 - -" ] || { echo "FAIL: on the good channel the count should stop at the good tag (1): $(counts)"; fail=1; }
 git -C "$t/upstream" tag -f good HEAD >/dev/null
-[ "$(counts)" = "0 2 0 -" ] || { echo "FAIL: a moved good tag wasn't followed: $(counts)"; fail=1; }
+[ "$(counts)" = "0 2 0 - -" ] || { echo "FAIL: a moved good tag wasn't followed: $(counts)"; fail=1; }
 mkdir -p "$t/config/vikix"; echo main > "$t/config/vikix/channel"
 git -C "$t/upstream" tag -f good HEAD~1 >/dev/null
 # (on main the verdict is asked too; the remote isn't GitHub's, so ?)
-[ "$(counts)" = "0 2 0 ?" ] || { echo "FAIL: on the main channel the count should reach the tip (2): $(counts)"; fail=1; }
+[ "$(counts)" = "0 2 0 ? -" ] || { echo "FAIL: on the main channel the count should reach the tip (2): $(counts)"; fail=1; }
 rm "$t/config/vikix/channel"
 git -C "$t/upstream" tag -d good >/dev/null
-[ "$(counts)" = "0 2 0 -" ] || { echo "FAIL: with no good tag the count should reach the tip (2): $(counts)"; fail=1; }
+[ "$(counts)" = "0 2 0 - -" ] || { echo "FAIL: with no good tag the count should reach the tip (2): $(counts)"; fail=1; }
 
 spy_git "$t/spy" "$t/fetched-from"
 git -C "$t/vikix" remote set-url origin git@github.com:vukini/vikix.git
@@ -136,36 +136,59 @@ counts4() { PATH="$t/spy:$t/bin:$PATH" XDG_STATE_HOME="$t/state" XDG_CONFIG_HOME
               sh "$t/vikix/bin/vikix-updates" >/dev/null; cat "$t/state/vikix/updates"; }
 rm -f "$t/asked"
 fake_curl "$(run_json "$tests" completed success)"
-[ "$(counts4)" = "0 2 0 -" ] || { echo "FAIL: on the good channel the verdict isn't asked (-): $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 - -" ] || { echo "FAIL: on the good channel the verdict isn't asked (-): $(counts4)"; fail=1; }
 [ ! -e "$t/asked" ] || { echo "FAIL: on the good channel GitHub was asked: $(cat "$t/asked")"; fail=1; }
 mkdir -p "$t/config/vikix"; echo main > "$t/config/vikix/channel"
-[ "$(counts4)" = "0 2 0 ok" ] || { echo "FAIL: a passed run should read ok: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 ok -" ] || { echo "FAIL: a passed run should read ok: $(counts4)"; fail=1; }
 grep -q "repos/vukini/vikix/actions/runs?head_sha=$sha" "$t/asked" ||
   { echo "FAIL: GitHub should be asked about this remote's repository and this commit: $(cat "$t/asked")"; fail=1; }
 fake_curl "$(run_json "$tests" completed failure)" "$(run_json "$pages" completed success)"
-[ "$(counts4)" = "0 2 0 failed" ] || { echo "FAIL: a failed test run should read failed: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 failed -" ] || { echo "FAIL: a failed test run should read failed: $(counts4)"; fail=1; }
 [ "$(grep -c . "$t/notified" 2>/dev/null)" = 1 ] && grep -q "tests failed on the commit this machine runs (${sha:0:7})" "$t/notified" ||
   { echo "FAIL: a failed verdict should be told once, naming the commit: $(cat "$t/notified" 2>/dev/null)"; fail=1; }
 counts4 >/dev/null
 [ "$(grep -c . "$t/notified")" = 1 ] || { echo "FAIL: the same failed commit was told again"; fail=1; }
 fake_curl "$(run_json "$tests" in_progress null)" "$(run_json "$tests" completed failure)"
-[ "$(counts4)" = "0 2 0 running" ] || { echo "FAIL: a run still going should read running: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 running -" ] || { echo "FAIL: a run still going should read running: $(counts4)"; fail=1; }
 fake_curl "$(run_json "$tests" in_progress null)" "$(run_json "$tests" completed success)"
-[ "$(counts4)" = "0 2 0 ok" ] || { echo "FAIL: one passed run is ok whatever else runs: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 ok -" ] || { echo "FAIL: one passed run is ok whatever else runs: $(counts4)"; fail=1; }
 fake_curl "$(run_json "$pages" completed failure)"
-[ "$(counts4)" = "0 2 0 ?" ] || { echo "FAIL: another workflow's failure isn't the tests': $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 ? -" ] || { echo "FAIL: another workflow's failure isn't the tests': $(counts4)"; fail=1; }
 fake_curl "$(run_json "$tests" completed cancelled)"
-[ "$(counts4)" = "0 2 0 ?" ] || { echo "FAIL: a cancelled run is no verdict: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 ? -" ] || { echo "FAIL: a cancelled run is no verdict: $(counts4)"; fail=1; }
 fake_curl down
-[ "$(counts4)" = "0 2 0 ?" ] || { echo "FAIL: with GitHub unreachable the verdict is ?: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 ? -" ] || { echo "FAIL: with GitHub unreachable the verdict is ?: $(counts4)"; fail=1; }
 printf '#!/bin/sh\necho "not json at all"\n' > "$t/bin/curl"
-[ "$(counts4)" = "0 2 0 ?" ] || { echo "FAIL: an answer that isn't JSON is ?: $(counts4)"; fail=1; }
+[ "$(counts4)" = "0 2 0 ? -" ] || { echo "FAIL: an answer that isn't JSON is ?: $(counts4)"; fail=1; }
 rm -f "$t/config/vikix/channel" "$t/bin/curl" "$t/bin/notify-send"
 git -C "$t/vikix" remote set-url origin "$t/upstream"
 [ "$fail" = 0 ] && echo "updates: GitHub's verdict on the commit this machine runs is the fourth word on the main channel (ok, failed, running, ?), - on good; a failed one is told once"
 
+# The fifth word: the last night's run of the whole set on this machine
+# (.claude/night-tests writes ~/.local/state/vikix/tests/night: when, commit,
+# version, verdict, detail, seconds). ok is ok; failed, stopped and unsure
+# are failed (none of them passed); not-run and no file are -.
+mkdir -p "$t/state/vikix/tests"
+night() { printf '20261026-0330\tabc1234\t0.72.200\t%s\t%s\t600\n' "$1" "$2" > "$t/state/vikix/tests/night"; }
+night ok "130 tests passed"
+[ "$(counts)" = "0 2 0 - ok" ] || { echo "FAIL: a night that passed should read ok: $(counts)"; fail=1; }
+night failed "palette docs"
+[ "$(counts)" = "0 2 0 - failed" ] || { echo "FAIL: a night that failed should read failed: $(counts)"; fail=1; }
+night stopped "stopped at the bound of 7200s"
+[ "$(counts)" = "0 2 0 - failed" ] || { echo "FAIL: a night stopped should read failed: $(counts)"; fail=1; }
+night unsure "the runner ended well but never said all passed"
+[ "$(counts)" = "0 2 0 - failed" ] || { echo "FAIL: a night unsure should read failed, never green: $(counts)"; fail=1; }
+night not-run "the machine wasn't free: on battery"
+[ "$(counts)" = "0 2 0 - -" ] || { echo "FAIL: a night that couldn't run should read -: $(counts)"; fail=1; }
+printf 'not a line at all\n' > "$t/state/vikix/tests/night"
+[ "$(counts)" = "0 2 0 - -" ] || { echo "FAIL: a file that isn't the line should read -: $(counts)"; fail=1; }
+rm "$t/state/vikix/tests/night"
+[ "$(counts)" = "0 2 0 - -" ] || { echo "FAIL: no night file should read -: $(counts)"; fail=1; }
+[ "$fail" = 0 ] && echo "updates: the night's tests are the fifth word: ok, failed for a night that didn't pass however it ended, - for none"
+
 # The bar's words for the file (vikix-updates-text, commands.lisp): the
-# fourth word puts "tests failed" in front; any other word adds nothing.
+# fourth word puts "tests failed" in front, the fifth "night tests failed";
+# any other word adds nothing.
 if command -v sbcl >/dev/null 2>&1; then
   awk '/^\(defun vikix-updates-text/{p=1} p{print} p&&/^$/{exit}' "$here/config/stumpwm/vikix/commands.lisp" > "$t/text.lisp"
   words() { sbcl --script /dev/stdin <<EOF
@@ -177,7 +200,11 @@ EOF
   [ "$(words '3 2 1 "ok"')" = "updates 3 + Vikix + firmware" ] || { echo "FAIL: the bar's words for 3 2 1 ok: $(words '3 2 1 "ok"')"; fail=1; }
   [ "$(words '0 1 0 "-"')" = "Vikix update" ] || { echo "FAIL: the bar's words for 0 1 0 -: $(words '0 1 0 "-"')"; fail=1; }
   [ "$(words '0 0 0 nil')" = "" ] || { echo "FAIL: the bar's words for nothing: $(words '0 0 0 nil')"; fail=1; }
-  [ "$fail" = 0 ] && echo "updates: the bar says tests failed in front of the counts, and nothing for the other verdicts"
+  [ "$(words '0 0 0 "-" "failed"')" = "night tests failed" ] || { echo "FAIL: the bar's words for a night that failed: $(words '0 0 0 "-" "failed"')"; fail=1; }
+  [ "$(words '2 0 0 "failed" "failed"')" = "night tests failed  tests failed  updates 2" ] || { echo "FAIL: the bar's words for both failed: $(words '2 0 0 "failed" "failed"')"; fail=1; }
+  [ "$(words '0 1 0 "-" "ok"')" = "Vikix update" ] || { echo "FAIL: the bar's words for a night that passed: $(words '0 1 0 "-" "ok"')"; fail=1; }
+  [ "$(words '0 0 0 "-" "-"')" = "" ] || { echo "FAIL: the bar's words for no night: $(words '0 0 0 "-" "-"')"; fail=1; }
+  [ "$fail" = 0 ] && echo "updates: the bar says tests failed, and night tests failed, in front of the counts, and nothing for the other verdicts"
 else
   echo "updates: no sbcl here, so the bar's words weren't tried"
 fi

@@ -182,6 +182,7 @@ find ~ -name '*.vikix-bak.*' 2>/dev/null
 
 - **"the check found a problem"** at the end: the update itself went through, but the StumpWM image doesn't start, or a link of Vikix's points elsewhere; the lines above say which. `vikix update --back` puts the system back as it was; `vikix rebuild-wm` makes a new image, `vikix update core` the links again. `vikix update check` runs the check alone.
 - **The bar says `tests failed`:** this machine follows `main` (`~/.config/vikix/channel`), took a commit before GitHub's tests ran, and they failed on it. Nothing is broken for certain: wait for the fix (the next `vikix update` takes it), or `vikix update --back`. A machine on `good` never sees this.
+- **The bar says `night tests failed`:** the night's run of the whole test set on this machine (`.claude/night-tests` in the development checkout, started by a rule of yours) didn't pass: it failed, was stopped at its bound, or ended without saying so. `.claude/night-tests --status` says which and where the log is (`~/.local/state/vikix/tests/night-WHEN.log`), `vikix doctor` says the same; it clears when a night passes. A night the machine wasn't free for (tests of another run, a release, the load, the battery) is said by the doctor only.
 
 The end of the run names the stages that failed, and the whole run is in `~/.local/state/vikix/logs/update-<time>.log`. The other stages still ran. Most failures are the network; run `vikix update` again.
 

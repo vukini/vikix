@@ -127,7 +127,7 @@ A stage that fails doesn't stop the rest; they are named at the end. The whole r
 
 It asks for your sudo password once. It never asks for anything else, and it never changes your files: only Vikix's links, the files it writes for you, and the marked blocks in `~/.bashrc` and `~/.bash_profile`.
 
-The bar says `updates 12` (Void packages), `Vikix update`, or both, when there is something to bring. `vikix-updates` checks a minute after login and then every 6 hours. On the `main` channel it also asks GitHub how its tests went on the commit this machine runs (every ten minutes while they run): the bar says `tests failed` when they failed, and a notification says it once, since a `main` machine took that commit before its tests. It clears when a commit that passed is installed, or with `vikix update --back`. On `good` nothing is asked: what runs has passed.
+The bar says `updates 12` (Void packages), `Vikix update`, or both, when there is something to bring. `vikix-updates` checks a minute after login and then every 6 hours. On the `main` channel it also asks GitHub how its tests went on the commit this machine runs (every ten minutes while they run): the bar says `tests failed` when they failed, and a notification says it once, since a `main` machine took that commit before its tests. It clears when a commit that passed is installed, or with `vikix update --back`. On `good` nothing is asked: what runs has passed. On the machine Vikix is developed on, `.claude/night-tests` runs the whole test set at night (a rule of yours starts it; it waits for a free machine on mains power first), and the bar says `night tests failed` the morning after a night that didn't pass, until one passes; `vikix doctor` says the last night either way.
 
 ## Whose file is it
 

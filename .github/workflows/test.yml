@@ -291,6 +291,9 @@ jobs:
       - name: records
         if: ${{ !cancelled() }}
         run: tests/ci.sh records
+      - name: night
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh night
 
   # The good tag: the last commit of main whose four jobs all passed here.
   # A machine on the good channel (~/.config/vikix/channel, the default)

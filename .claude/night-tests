@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# night-tests — the whole test set at night, the morning told (Vid's dev machine)
+#
+#   .claude/night-tests            wait for the machine to be free (no test of
+#                                  another run, no release under way, the load
+#                                  under the cores, on mains power), up to an
+#                                  hour; then tests/run.sh --all in this
+#                                  checkout, as it stands
+#   .claude/night-tests --now      the same without the wait: a machine that
+#                                  isn't free is said, nothing run
+#   .claude/night-tests --status   the last run, in a line
+#
+# Scheduled by a rule of yours, in ~/.stumpwm.d/rules.lisp (the ticker runs
+# it from the desktop, so a machine asleep at that hour has no run, which the
+# morning says), with the checkout Vikix is developed in:
+#   (at "03:30" (run "~/src/vikix/.claude/night-tests"))
+#
+# What comes of it, in ~/.local/state/vikix/tests/: `night`, one line (when,
+# the commit, the version, the verdict, the detail, the seconds, tab-parted),
+# the run's whole output as night-WHEN.log (the last fourteen kept), and a
+# line a run in night.log. The verdict is `ok` only when the runner ended
+# well AND said "all passed": a runner missing is `failed`, a run stopped
+# from outside `stopped`, one that ended well without the line `unsure`, and
+# none of those is green (Desktop 1.0, gate A: no missing runner or skipped
+# check counts as a pass); a machine not free is `not-run`, with why. The
+# bar says `night tests failed` (bin/vikix-updates reads the file as its
+# fifth word) until a later night passes, a notification says a night that
+# didn't pass, and vikix doctor says the last run either way.
+#
+# VIKIX_NIGHT_WAIT (seconds to wait for a free machine, 3600), VIKIX_NIGHT_POLL
+# (between looks, 60), VIKIX_NIGHT_LIMIT (the run's bound, 7200), VIKIX_NIGHT_REPO
+# (another checkout), VIKIX_NIGHT_RUNNER (another runner; the test's stand-in),
+# VIKIX_POWER_SUPPLY, VIKIX_LOADAVG and VIKIX_TEST_SLOTS_DIR point the looks elsewhere.
+
+set -uo pipefail
+repo=${VIKIX_NIGHT_REPO:-$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)}
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix/tests"
+status_file="$state/night"
+wait_for=${VIKIX_NIGHT_WAIT:-3600}
+poll=${VIKIX_NIGHT_POLL:-60}
+limit=${VIKIX_NIGHT_LIMIT:-7200}
+runner=${VIKIX_NIGHT_RUNNER:-$repo/tests/run.sh}
+slots_dir=${VIKIX_TEST_SLOTS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/vikix-test-slots}
+power=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}
+loadavg=${VIKIX_LOADAVG:-/proc/loadavg}
+mode=waiting
+case ${1:-} in
+  '') ;;
+  --now) mode=now ;;
+  --status) mode=status ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0"; exit 0 ;;
+  *) echo "usage: .claude/night-tests [--now|--status]" >&2; exit 2 ;;
+esac
+
+# The last run, as a line.
+show_status() {
+  [ -f "$status_file" ] || { echo "no night run yet ($status_file)"; return 2; }
+  local when commit version verdict detail secs
+  IFS=$'\t' read -r when commit version verdict detail secs < "$status_file"
+  echo "$when: $verdict ($detail) on ${commit:0:7}, Vikix $version, ${secs}s; the log: $state/night-$when.log"
+  case $verdict in ok) return 0 ;; not-run) return 2 ;; *) return 1 ;; esac
+}
+[ "$mode" != status ] || { show_status; exit $?; }
+
+# Why the machine isn't free, or nothing.
+busy_reason() {
+  local n=0 f pid load cores
+  # Tests of other runs: each leaves a note while it waits or runs
+  # (tests/run.sh), named by its process; a dead one is nobody's.
+  for f in "$slots_dir"/notes/*; do
+    [ -f "$f" ] || continue
+    pid=$(basename "$f")
+    kill -0 "$pid" 2>/dev/null && n=$((n + 1))
+  done
+  [ "$n" = 0 ] || { echo "$n test(s) of other runs on the machine"; return; }
+  # A release under way holds its lock (.claude/release).
+  local common lock
+  common=$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null) && common=$(cd "$repo" && cd "$common" && pwd)
+  lock=${common:-$repo/.git}/vikix-release.lock
+  if [ -e "$lock" ]; then
+    exec 8>"$lock"
+    if flock -n 8; then flock -u 8; else exec 8>&-; echo "a release is under way"; return; fi
+    exec 8>&-
+  fi
+  # The load under the cores: past them a timing test fails on its own.
+  load=$(cut -d' ' -f1 "$loadavg" 2>/dev/null || echo 0); cores=$(nproc 2>/dev/null || echo 1)
+  if awk -v l="$load" -v c="$cores" 'BEGIN { exit !(l + 0 >= c + 0) }'; then echo "load $load on $cores cores"; return; fi
+  # Mains power: a laptop on its battery isn't drained by an hour of tests.
+  # No battery (a desktop) is fine; a battery with no mains online is not.
+  local battery='' mains=''
+  for f in "$power"/*/type; do
+    [ -f "$f" ] || continue
+    case $(cat "$f" 2>/dev/null) in
+      Battery) battery=1 ;;
+      Mains) [ "$(cat "$(dirname "$f")/online" 2>/dev/null)" = 1 ] && mains=1 ;;
+    esac
+  done
+  [ -z "$battery" ] || [ -n "$mains" ] || { echo "on battery"; return; }
+}
+
+# One night run at a time: a second says so and leaves.
+mkdir -p "$state" || exit 1
+exec 9>"$status_file.lock"
+flock -n 9 || { echo "a night run is going already"; exit 2; }
+
+when=$(date +%Y%m%d-%H%M)
+commit=$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo '?')
+version=$(cat "$repo/VERSION" 2>/dev/null || echo '?')
+log="$state/night-$when.log"
+start=$SECONDS
+
+# The result, written whole and said; the bar refreshed through
+# vikix-updates (the installed one, which reads the file), a night that
+# didn't pass told, since a bar is easy to miss.
+finish() {   # finish VERDICT DETAIL
+  local verdict=$1 detail=$2 secs=$((SECONDS - start))
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$when" "$commit" "$version" "$verdict" "$detail" "$secs" > "$status_file.tmp"
+  mv "$status_file.tmp" "$status_file"
+  cat "$status_file" >> "$state/night.log"
+  # The last fourteen logs; the rest make room.
+  ls -1 "$state"/night-*.log 2>/dev/null | head -n -14 | while read -r f; do rm -f "$f"; done
+  echo "night tests, $when: $verdict ($detail) on ${commit:0:7}, Vikix $version, ${secs}s"
+  if command -v vikix-updates >/dev/null 2>&1; then timeout --kill-after=5s 90s vikix-updates >/dev/null 2>&1 || true; fi
+  if [ "$verdict" != ok ] && [ -n "${DISPLAY:-}" ] && command -v notify-send >/dev/null 2>&1; then
+    notify-send -u critical "Vikix" "The night's tests $verdict: $detail (${commit:0:7}). .claude/night-tests --status says where the log is; the bar says 'night tests failed' until a night passes." 2>/dev/null || true
+  fi
+  case $verdict in ok) exit 0 ;; not-run) exit 2 ;; *) exit 1 ;; esac
+}
+
+# Free, or wait for it.
+waited=0
+while reason=$(busy_reason) && [ -n "$reason" ]; do
+  if [ "$mode" = now ] || [ "$waited" -ge "$wait_for" ]; then
+    finish not-run "the machine wasn't free: $reason$([ "$mode" = now ] || echo " (waited ${waited}s)")"
+  fi
+  sleep "$poll"; waited=$((waited + poll))
+done
+
+[ -x "$runner" ] || finish failed "no runner at $runner"
+# The tests don't inherit the lock's descriptor (a program a test leaves
+# behind would hold it), and the run is bounded: a test waiting for a slot
+# for ever would otherwise hold the night, and run.sh says what passed and
+# what was stopped when a TERM ends it.
+# In the background and waited on: a signal (a shutdown, Ctrl+C) reaches
+# the wait at once, where a foreground run would hold the trap until the
+# runner ended; the trap then ends the runner's tree, children first, so
+# nothing of the night is left running, and the morning reads `stopped`.
+kill_tree() {   # kill_tree PID: PID's children first, then PID
+  local c
+  for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done
+  kill "$1" 2>/dev/null
+}
+(cd "$repo" && exec timeout --kill-after=60s "$limit" "$runner" --all 9>&-) > "$log" 2>&1 &
+runner_pid=$!
+ended_by() {   # ended_by SIGNAL
+  trap - TERM INT
+  kill_tree "$runner_pid"
+  wait "$runner_pid" 2>/dev/null
+  finish stopped "ended by $1 before the run ended"
+}
+trap 'ended_by SIGTERM' TERM
+trap 'ended_by SIGINT' INT
+wait "$runner_pid"; code=$?
+trap - TERM INT
+if [ "$code" = 0 ] && grep -q '^all passed:' "$log"; then
+  n=$(grep '^all passed:' "$log" | tail -1 | awk '{print NF - 2}')
+  flaky=$(sed -n 's/^(passed only once more alone, a timing flake: \(.*\); noted in.*/\1/p' "$log" | tail -1)
+  finish ok "$n tests passed${flaky:+, once more alone: $flaky}"
+elif [ "$code" = 124 ] || [ "$code" = 137 ]; then
+  failed=$(sed -n 's/^  FAILED: //p' "$log" | tail -1)
+  finish stopped "stopped at the bound of ${limit}s${failed:+; failed before it: $failed}"
+elif [ "$code" != 0 ]; then
+  failed=$(sed -n 's/^FAILED: //p' "$log" | tail -1)
+  finish failed "${failed:-the runner exited $code with no FAILED line}"
+else
+  finish unsure "the runner ended well but never said all passed"
+fi

@@ -156,7 +156,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `jupyter.log` | JupyterLab's messages (`jlab`) |
 | `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
 | `test-flakes.log` | Each screen test that failed in a run of `tests/run.sh` and passed once more alone: when, the commit, the test, the load, its first FAIL lines (a test often here is one to mend) |
-| `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours: the counts, and on the `main` channel GitHub's verdict on the commit this machine runs |
+| `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours: the counts, on the `main` channel GitHub's verdict on the commit this machine runs, and the last night's run of the whole test set |
+| `tests/night`, `tests/night-WHEN.log`, `tests/night.log` | The last night's run of the whole test set (`.claude/night-tests`, the development machine): its one line (when, the commit, the version, the verdict, the detail, the seconds), the run's whole output (the last fourteen kept), and a line a run |
 | `tests-told` | The commit whose failed tests were told in a notification, so it is said once |
 | `mimeapps-offered` | The starter's default programs already offered to your `~/.config/mimeapps.list` (added, or yours kept), so each is offered once |
 | `wallpaper-now`, `wallpaper-queue`, `wallpaper-shown`, `wallpaper.lock` | The picture the cycling wallpaper shows, the pictures still to come this round and those it has had, and the lock that keeps its watcher (`vikix-wallpaper --watch`) to one |
